@@ -47,7 +47,7 @@ Operation:
   - All password filters must say yes in order for the password change to be accepted. If any password filter says no, the password is not accepted. Therefore, this password filter does not
     need to check for password length, password complexity, password age, etc., because those things are already checked for using the in-box Windows password policy.
 
-  - If a password contains any of the character sequences in the blacklist, *and* the blacklisted character sequence makes at least 50% of the password, then the password is rejected.
+  - If a password contains any of the character sequences in the blacklist, *and* the blacklisted character sequence makes up at least 50% of the password, then the password is rejected.
 
   - Comparisons are NOT case sensitive.
 
@@ -55,7 +55,7 @@ Operation:
 
   - No Unicode support at this time. Everything is ASCII/ANSI. (You can still use Unicode characters in your passwords, but Unicode characters will not match against anything in the blacklist.)
 
-  - Either Windows or Unix line endings (either \r\n or \n) should both work.
+  - Either Windows or Unix line endings (either \r\n or \n) in the blacklist file should both work. (Notepad++ is a good editor for finding unprintable characters in your text file.)
   
   - For example, if the blacklist contains the token "abc", then the passwords abc and abc123 and AbC123 and 123Abc will all be rejected. But Abc123! will be accepted, because the token abc 
     does not make up half (50%) of the full password or more.
@@ -89,6 +89,12 @@ Debugging:
 	![etw2](ma2.png "view trace with Message Analyzer")
 	
 	![etw1](ma3.png "view trace with Message Analyzer")
+	
+  - In the trace log above, you see an administrator attempting to set the password for the user hunter2.
+    If the user had been attempting to reset their own password, the log would say "CHANGE password" instead of "SET password".
+	Notice that the password is rejected numerous times. I tried to set the password to starwars, starwars1, Starwars1!, etc., but they all
+	were rejected because the blacklist contains the token starwars. However, I eventually attempted to set the password to Starwars1!DarthVader,
+	and that password was accepted because even though it contains the token starwars, more than 50% of the password is NOT starwars.
 
 
 
@@ -96,10 +102,12 @@ Coding Guidelines:
 
   - Want to contibute? Cool! I'd like to stick to these rules:
 
-  - C only. (C++ is a Pandora's Box that I don't want to open.)
+  - C only. (It's just my preference. Don't want to start any language wars here.)
 
   - Compile with All Warnings (/Wall). Project should compile with 0 warnings. You MAY temporarily disable warnings with #pragmas if the warnings are too
     pedantic (e.g. don't warn me about adding padding bytes to structs or that a function was inlined.)
+	
+  - MSVC 2017 was the IDE I used originally. You can use something else if you have a good reason to though.	
 
   - Use a static analyzer. The MSVC IDE comes with Code Analysis. Put it on "All Rules". You shouldn't trigger any Code Analysis warnings.
 
@@ -109,4 +117,4 @@ Coding Guidelines:
 
   - Hungarian notation not necessary. Use descriptive variable names. We don't use 80-character terminals any more; it's OK to type it out.
 
-  - Comment on why, not what.
+  - Comments are good but don't make a lot of comments about what the code does - instead write comments about _why_ you're doing what you're doing.
