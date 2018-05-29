@@ -7,7 +7,8 @@ A password filter for Active Directory that uses a blacklist of bad passwords/ch
 Reference: https://msdn.microsoft.com/en-us/library/windows/desktop/ms721882(v=vs.85).aspx
 
 ********************************************************************************************
-READ ME
+# READ ME
+
 This is a personal project and is not in any way endorsed or supported by Microsoft.
 
 Use at your own risk. This code is not guaranteed to be free of errors, and comes
