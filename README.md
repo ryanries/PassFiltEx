@@ -64,7 +64,13 @@ Operation:
     to read might pose a security threat, as it gives potential attackers a lot of information about which passwords you blacklist. For example, a hacker could feed your blacklist into his
 	or her password cracker so that the password cracker would not attempt any blacklisted passwords, which would save the hacker time and give them fewer passwords to search for.
 	So for now you'll need to copy the blacklist file to each DC and update it on each DC.
-
+	
+  - Question: Can you/will you integrate with Troy Hunt's "haveibeenpwned" API? Answer: Probably not. First, I'm pretty sure that has already been done by someone else. And you are free
+    to use multiple password filters simultaneously if you want. Second, haveibeenpwned is about matching password hashes to identify passwords that have _already_ been owned. 
+	This password filter aims to solve a slightly different problem by preventing not just passwords that have already been owned, but also preventing the use of passwords 
+	that could easily be owned because they contain common patterns, even if those password hashes are not known yet.
+  
+  
 Debugging:
 
   - The password filter utilizes Event Tracing for Windows (ETW). ETW is fast, lightweight, and there is no concern over managing text-based log files which are slow and consume disk space.
