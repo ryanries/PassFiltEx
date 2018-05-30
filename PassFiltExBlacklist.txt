@@ -1,2 +1,8 @@
 Go download a blacklist from https://github.com/danielmiessler/SecLists
 For example I used the Top 1000 list from https://github.com/danielmiessler/SecLists/tree/master/Passwords/Common-Credentials
+The file will look like this: (delete these first 3 lines obviously)
+aaaa
+starwars
+asdf
+1234
+iloveyou
