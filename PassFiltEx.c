@@ -322,10 +322,11 @@ __declspec(dllexport) NTSTATUS CALLBACK PasswordChangeNotify(_In_ PUNICODE_STRIN
 	UNREFERENCED_PARAMETER(NewPassword);
 
 	// UNICODE_STRINGs are usually not null-terminated.
-	// Let's make a null-terminated copy of it. sAMAccountNames can't be very long
-	// so I think we're safe with this buffer size.
+	// Let's make a null-terminated copy of it.
+	// MSDN says that the upper limit of sAMAccountName is 256
+	// but SAM is AFAIK restricted to <= 20 characters. Anyway, let's pick a safe buffer size.
 
-	wchar_t UserNameCopy[128] = { 0 };
+	wchar_t UserNameCopy[257] = { 0 };
 
 	memcpy(&UserNameCopy, UserName->Buffer, UserName->Length);
 
@@ -393,10 +394,11 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	BADSTRING* CurrentNode = gBlacklistHead;
 
 	// UNICODE_STRINGs are usually not null-terminated.
-	// Let's make a null-terminated copy of it. sAMAccountNames can't be very long
-	// so I think we're safe with this buffer size.
+	// Let's make a null-terminated copy of it.
+	// MSDN says that the upper limit of sAMAccountName is 256
+	// but SAM is AFAIK restricted to <= 20 characters. Anyway, let's pick a safe buffer size.
 
-	wchar_t AccountNameCopy[128] = { 0 };
+	wchar_t AccountNameCopy[257] = { 0 };
 
 	memcpy(&AccountNameCopy, AccountName->Buffer, AccountName->Length);
 
