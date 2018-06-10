@@ -11,7 +11,7 @@ Reference: https://msdn.microsoft.com/en-us/library/windows/desktop/ms721882(v=v
 ********************************************************************************************
 # READ ME
 
-This is a personal project and is not in any way endorsed or supported by Microsoft.
+This is a personal project and is NOT endorsed or supported by Microsoft in any way.
 
 Use at your own risk. This code is not guaranteed to be free of errors, and comes
 
@@ -52,8 +52,27 @@ Operation:
   is not accepted. Therefore, this password filter does not need to check for password length, password complexity, password 
   age, etc., because those things are already checked for using the in-box Windows password policy.
 
-- If a password contains any of the character sequences in the blacklist, *and* the blacklisted character sequence makes up at 
-  least 50% of the password, then the password is rejected.
+- Optionally, you can set the following registry values:
+  Subkey: HKLM\SOFTWARE\PassFiltEx
+    **BlacklistFileName**, REG_SZ, Default: PassFiltExBlacklist.txt
+    **TokenPercentageOfPassword**, REG_DWORD, Default: 60
+	
+![regedit](regedit2.png "optional reg entries")	
+	
+  **BlacklistFileName** allows you to specify a custom path to a blacklist file. By default if there is nothing specified, it is
+  PassFiltExBlacklist.txt. The current working directory of the password filter is %SystemRoot%\System32, but you can specify
+  a fully-qualified path name too. Even a UNC path (such as something in SYSVOL) if you want. WARNING: You are responsible 
+  for properly setting the permissions on the blacklist file so that it may only be edited and viewed by authorized users.
+  You can store the blacklist file in SYSVOL if you want, but you must ask yourself whether you want all Authenticated Users
+  to have the ability to read your blacklist file.
+  
+  **TokenPercentageOfPassword** allows you specify how much of the entire password must consist of the blacklisted token
+  before the password change is rejected. The default is 60% if nothing is specified. The registry value is REG_DWORD, with 
+  the value 60 decimal representing 60%, which is converted to float 0 - 1.0 at runtime. For example, if the character sequence
+  starwars appeared in the blacklist file, and TokenPercentageOfPassword was set to 60, then the password Starwars1! would 
+  be rejected, because more than 60% of the proposed password is made up of the blacklisted term starwars. However, the 
+  password starwars1!DarthVader88 would be accepted, because even though it contains the blacklisted sequence starwars, more
+  than 60% of the proposed password is NOT starwars.
 
 - Comparisons are NOT case sensitive.
 
@@ -67,13 +86,7 @@ Operation:
   finding unprintable characters in your text file.)
 
 - For example, if the blacklist contains the token "abc", then the passwords abc and abc123 and AbC123 and 123Abc will all be 
-  rejected. But Abc123! will be accepted, because the token abc does not make up half (50%) of the full password or more.
-
-- Question: Why don't you store the blacklist file in SYSVOL? Answer: Might add that later. For now, I was concerned that having 
-  the blacklist file available for all Authenticated Users to read might pose a security threat, as it gives potential attackers a 
-  lot of information about which passwords you blacklist. For example, a hacker could feed your blacklist into his or her password
-  cracker so that the password cracker would not attempt any blacklisted passwords, which would save the hacker time and give them
-  fewer passwords to search for. So for now you'll need to copy the blacklist file to each DC and update it on each DC.
+  rejected. But Abc123! will be accepted, because the token abc does not make up 60% of the full password or more.
 
 - Question: Can you/will you integrate with Troy Hunt's "haveibeenpwned" API? Answer: Probably not. First, I'm pretty sure that has
   already been done by someone else. And you are free to use multiple password filters simultaneously if you want. Second, 
