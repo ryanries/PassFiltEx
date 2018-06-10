@@ -54,9 +54,12 @@ is not accepted. Therefore, this password filter does not need to check for pass
 age, etc., because those things are already checked for using the in-box Windows password policy.
 
 - Optionally, you can set the following registry values:
-Subkey: HKLM\SOFTWARE\PassFiltEx
-**BlacklistFileName**, REG_SZ, Default: PassFiltExBlacklist.txt
-**TokenPercentageOfPassword**, REG_DWORD, Default: 60
+
+  Subkey: HKLM\SOFTWARE\PassFiltEx
+  
+    **BlacklistFileName**, REG_SZ, Default: PassFiltExBlacklist.txt
+
+	**TokenPercentageOfPassword**, REG_DWORD, Default: 60
 
 ![regedit](regedit2.png "optional reg entries")
 
