@@ -458,18 +458,20 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	memcpy(PasswordCopy, Password->Buffer, Password->Length);
 
-	for (unsigned int Counter = 0; Counter < wcslen(PasswordCopy) - 1; Counter++)
-	{
-		PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);
-	}	
+	if (Password->Length > 0) {
+		for (unsigned int Counter = 0; Counter < wcslen(PasswordCopy) - 1; Counter++)
+		{
+			PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);
+		}	
+	}
 
-	while (CurrentNode->Next != NULL)
+	while (CurrentNode != NULL && CurrentNode->Next != NULL)
 	{
 		CurrentNode = CurrentNode->Next;
 
 		if (wcslen(CurrentNode->String) == 0)
 		{
-			EventWriteStringW2(L"[%s:%s@%d] ERROR: This blacklist token is 0 characters long. It will be skipped. Check your blacklist file for blank lines!", __FILENAMEW__, __FUNCTIONW__, __LINE__, CurrentNode->String);
+			EventWriteStringW2(L"[%s:%s@%d] ERROR: This blacklist token is 0 characters long. It will be skipped. Check your blacklist file for blank lines!", __FILENAMEW__, __FUNCTIONW__, __LINE__);
 
 			continue;
 		}
