@@ -710,6 +710,10 @@ ULONG EventWriteStringW2(_In_ PCWSTR String, _In_ ...)
 	_vsnwprintf_s(FormattedString, sizeof(FormattedString) / sizeof(wchar_t), _TRUNCATE, String, ArgPointer);
 
 	va_end(ArgPointer);
+	
+#if DEBUG
+	wprintf(L"%ls\r\n", FormattedString);
+#endif
 
 	return(EventWriteString(gEtwRegHandle, 0, 0, FormattedString));
 }
