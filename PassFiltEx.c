@@ -463,7 +463,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);
 	}	
 
-	while (CurrentNode->Next != NULL)
+	while (CurrentNode != NULL && CurrentNode->Next != NULL)
 	{
 		CurrentNode = CurrentNode->Next;
 
