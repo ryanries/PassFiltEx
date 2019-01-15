@@ -458,10 +458,12 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	memcpy(PasswordCopy, Password->Buffer, Password->Length);
 
-	for (unsigned int Counter = 0; Counter < wcslen(PasswordCopy) - 1; Counter++)
-	{
-		PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);
-	}	
+	if (Password->Length > 0) {
+		for (unsigned int Counter = 0; Counter < wcslen(PasswordCopy) - 1; Counter++)
+		{
+			PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);
+		}	
+	}
 
 	while (CurrentNode != NULL && CurrentNode->Next != NULL)
 	{
