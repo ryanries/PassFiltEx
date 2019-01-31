@@ -573,10 +573,12 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 
 			// Need to clear blacklist and free memory first.
 			BADSTRING* CurrentNode = gBlacklistHead;
+			BADSTRING* NextNode = CurrentNode->Next;
 
-			while (CurrentNode->Next != NULL)
+			while (NextNode != NULL)
 			{
-				CurrentNode = CurrentNode->Next;
+				CurrentNode = NextNode;
+				NextNode = CurrentNode->Next;
 
 				if (HeapFree(GetProcessHeap(), 0, CurrentNode) == 0)
 				{
