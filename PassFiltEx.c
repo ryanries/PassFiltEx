@@ -434,7 +434,16 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	wchar_t AccountNameCopy[257] = { 0 };
 
+	wchar_t* PasswordCopy = NULL;
+
 	memcpy(&AccountNameCopy, AccountName->Buffer, AccountName->Length);
+
+	if (_wcsicmp(AccountNameCopy, L"krbtgt") == 0)
+	{
+		EventWriteStringW2(L"[%s:%s@%d] Always allowing password change for krbtgt account.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+
+		goto End;
+	}
 
 	if (SetOperation)
 	{
@@ -443,9 +452,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	else
 	{
 		EventWriteStringW2(L"[%s:%s@%d] CHANGE password for user %s.", __FILENAMEW__, __FUNCTIONW__, __LINE__, AccountNameCopy);
-	}	
-
-	wchar_t* PasswordCopy = NULL;
+	}		
 	
 	if ((PasswordCopy = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, Password->MaximumLength)) == NULL)
 	{
@@ -458,7 +465,8 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	memcpy(PasswordCopy, Password->Buffer, Password->Length);
 
-	if (Password->Length > 0) {
+	if (Password->Length > 0) 
+	{
 		for (unsigned int Counter = 0; Counter < wcslen(PasswordCopy) - 1; Counter++)
 		{
 			PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);

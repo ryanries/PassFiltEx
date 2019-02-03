@@ -15,7 +15,7 @@ UNICODE_STRING toUnicodeString(const std::wstring& str) {
 	UNICODE_STRING lsaWStr;
 	DWORD len = 0;
 
-	len = str.length();
+	len = (DWORD)str.length();
 	LPWSTR cstr = new WCHAR[len + 1];
 	memcpy(cstr, str.c_str(), (len + 1) * sizeof(WCHAR));
 	lsaWStr.Buffer = cstr;
