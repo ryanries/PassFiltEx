@@ -19,7 +19,7 @@ with no guarantees, liability, warranties or support.
 
 ********************************************************************************************
 
-I wrote this just to join the club of people who can say that they've done it.
+I wrote this just to join the club of people who can say that they've done it. Programming is fun.
 
 Installation:
 
@@ -101,7 +101,7 @@ Operation:
   finding unprintable characters in your text file.)
 
 - For example, if the blacklist contains the token "abc", then the passwords abc and abc123 and AbC123 and 123Abc will all be 
-  rejected. But Abc123! will be accepted, because the token abc does not make up 60% of the full password or more.
+  rejected. But Abc123! will be accepted, because the token abc does not make up 60% or more of the full password.
 
 - Question: Can you/will you integrate with Troy Hunt's "haveibeenpwned" API? Answer: Probably not. First, I'm pretty sure that has
   already been done by someone else. And you are free to use multiple password filters simultaneously if you want. Second, 
@@ -111,6 +111,10 @@ Operation:
 
 
 Debugging:
+
+- The RELEASE build of the password filter uses only ETW event logging. The DEBUG build logs to ETW, stdout console and also DebugOut.
+  (You can use Sysinternal's DbgView to view DebugOut messages.)
+  WARNING: Debug builds print the passwords out into the logging, which is a security risk. Release builds do not print passwords.
 
 - The password filter utilizes Event Tracing for Windows (ETW). ETW is fast, lightweight, and there is no concern over managing 
   text-based log files which are slow and consume disk space.

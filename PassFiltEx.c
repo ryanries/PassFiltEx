@@ -20,7 +20,7 @@ with no guarantees, liability, warranties or support.
 
 ********************************************************************************************
 
-I wrote this just to join the club of people who can say that they've done it.
+I wrote this just to join the club of people who can say that they've done it. Programming is fun.
 
 Installation:
 
@@ -33,7 +33,7 @@ Installation:
 - Edit the registry: HKLM\SYSTEM\CurrentControlSet\Control\Lsa => Notification Packages
 
 - Add PassFiltEx to the end of the list. (Do not include the file extension.) So the whole list of notification packages will read
-"rassfm scecli PassFiltEx" with newlines between each one.
+  "rassfm scecli PassFiltEx" with newlines between each one.
 
 - Reboot the domain controller.
 
@@ -47,86 +47,93 @@ Installation:
 Operation:
 
 - Any time a user attempts to change his or her password, or any time an administrator attempts to set a user's password, the
-callback in this password filter will be invoked.
+  callback in this password filter will be invoked.
 
 - All password filters must say yes in order for the password change to be accepted. If any password filter says no, the password
-is not accepted. Therefore, this password filter does not need to check for password length, password complexity, password
-age, etc., because those things are already checked for using the in-box Windows password policy.
+  is not accepted. Therefore, this password filter does not need to check for password length, password complexity, password
+  age, etc., because those things are already checked for using the in-box Windows password policy.
 
 - Optionally, you can set the following registry values:
 
   Subkey: HKLM\SOFTWARE\PassFiltEx
-  
-    **BlacklistFileName**, REG_SZ, Default: PassFiltExBlacklist.txt
+
+	**BlacklistFileName**, REG_SZ, Default: PassFiltExBlacklist.txt
 
 	**TokenPercentageOfPassword**, REG_DWORD, Default: 60
 
+	**RequireCharClasses**, REG_DWORD, Default: 0
+
+
 ![regedit](regedit2.png "optional reg entries")
 
-**BlacklistFileName** allows you to specify a custom path to a blacklist file. By default if there is nothing specified, it is
-PassFiltExBlacklist.txt. The current working directory of the password filter is %SystemRoot%\System32, but you can specify
-a fully-qualified path name too. Even a UNC path (such as something in SYSVOL) if you want. WARNING: You are responsible
-for properly setting the permissions on the blacklist file so that it may only be edited and viewed by authorized users.
-You can store the blacklist file in SYSVOL if you want, but you must ask yourself whether you want all Authenticated Users
-to have the ability to read your blacklist file.
+  **BlacklistFileName** allows you to specify a custom path to a blacklist file. By default if there is nothing specified, it is
+  PassFiltExBlacklist.txt. The current working directory of the password filter is %SystemRoot%\System32, but you can specify
+  a fully-qualified path name too. Even a UNC path (such as something in SYSVOL) if you want. WARNING: You are responsible
+  for properly setting the permissions on the blacklist file so that it may only be edited and viewed by authorized users.
+  You can store the blacklist file in SYSVOL if you want, but you must ask yourself whether you want all Authenticated Users
+  to have the ability to read your blacklist file.
 
-**TokenPercentageOfPassword** allows you specify how much of the entire password must consist of the blacklisted token
-before the password change is rejected. The default is 60% if nothing is specified. The registry value is REG_DWORD, with
-the value 60 decimal representing 60%, which is converted to float 0 - 1.0 at runtime. For example, if the character sequence
-starwars appeared in the blacklist file, and TokenPercentageOfPassword was set to 60, then the password Starwars1! would
-be rejected, because more than 60% of the proposed password is made up of the blacklisted term starwars. However, the
-password starwars1!DarthVader88 would be accepted, because even though it contains the blacklisted sequence starwars, more
-than 60% of the proposed password is NOT starwars.
+  **TokenPercentageOfPassword** allows you specify how much of the entire password must consist of the blacklisted token
+  before the password change is rejected. The default is 60% if nothing is specified. The registry value is REG_DWORD, with
+  the value 60 decimal representing 60%, which is converted to float 0 - 1.0 at runtime. For example, if the character sequence
+  starwars appeared in the blacklist file, and TokenPercentageOfPassword was set to 60, then the password Starwars1! would
+  be rejected, because more than 60% of the proposed password is made up of the blacklisted term starwars. However, the
+  password starwars1!DarthVader88 would be accepted, because even though it contains the blacklisted sequence starwars, more
+  than 60% of the proposed password is NOT starwars.
 
-**RequireCharClasses** allows you to require even more categories of characters over the built-in Active Directory
-password complexity rules configured via Group Policy. The built-in AD password complexity rules only require 3 out of 5
-possible different types of characters: Uppercase, Lowercase, Digit, Special, and Unicode. This registry setting allows you
-to require 4 or even 5 out of the 5 possible different character types. You may use this registry setting either in combination
-with the built-in AD password complexity, or without it. The value is a bitfield where 1 = require lower, 2 = require upper,
-4 = require digit, 8 = require special, and 16 = require unicode. You can add these flags together to make combinations. E.g.,
-a value of 15 (decimal) means "require lower AND upper AND digit AND special, but not unicode."
+  **RequireCharClasses** allows you to require even more categories of characters over the built-in Active Directory
+  password complexity rules configured via Group Policy. The built-in AD password complexity rules only require 3 out of 5
+  possible different types of characters: Uppercase, Lowercase, Digit, Special, and Unicode. This registry setting allows you
+  to require 4 or even 5 out of the 5 possible different character types. You may use this registry setting either in combination
+  with the built-in AD password complexity, or without it. The value is a bitfield where 1 = require lower, 2 = require upper,
+  4 = require digit, 8 = require special, and 16 = require unicode. You can add these flags together to make combinations. E.g.,
+  a value of 15 (decimal) means "require lower AND upper AND digit AND special, but not unicode."
 
 
 - Comparisons are NOT case sensitive.
 
 - The blacklist is reloaded every 60 seconds, so feel free to edit the blacklist file at will. The password filter will read the
-new updates within a minute.
+  new updates within a minute.
 
 - No Unicode support at this time. Everything is ASCII/ANSI. (You can still use Unicode characters in your passwords, but Unicode
-characters will not match against anything in the blacklist.)
+  characters will not match against anything in the blacklist.)
 
 - Either Windows or Unix line endings (either \r\n or \n) in the blacklist file should both work. (Notepad++ is a good editor for
-finding unprintable characters in your text file.)
+  finding unprintable characters in your text file.)
 
 - For example, if the blacklist contains the token "abc", then the passwords abc and abc123 and AbC123 and 123Abc will all be
-rejected. But Abc123! will be accepted, because the token abc does not make up 60% of the full password or more.
+  rejected. But Abc123! will be accepted, because the token abc does not make up 60% or more of the full password.
 
 - Question: Can you/will you integrate with Troy Hunt's "haveibeenpwned" API? Answer: Probably not. First, I'm pretty sure that has
-already been done by someone else. And you are free to use multiple password filters simultaneously if you want. Second,
-haveibeenpwned is about matching password hashes to identify passwords that have _already_ been owned. This password filter aims
-to solve a slightly different problem by preventing not just passwords that have already been owned, but also preventing the use
-of passwords that could easily be owned because they contain common patterns, even if those password hashes are not known yet.
+  already been done by someone else. And you are free to use multiple password filters simultaneously if you want. Second,
+  haveibeenpwned is about matching password hashes to identify passwords that have _already_ been owned. This password filter aims
+  to solve a slightly different problem by preventing not just passwords that have already been owned, but also preventing the use
+  of passwords that could easily be owned because they contain common patterns, even if those password hashes are not known yet.
 
 
 Debugging:
 
+- The RELEASE build of the password filter uses only ETW event logging. The DEBUG build logs to ETW, stdout console and also DebugOut.
+  (You can use Sysinternal's DbgView to view DebugOut messages.)
+  WARNING: Debug builds print the passwords out into the logging, which is a security risk. Release builds do not print passwords.
+
 - The password filter utilizes Event Tracing for Windows (ETW). ETW is fast, lightweight, and there is no concern over managing
-text-based log files which are slow and consume disk space.
+  text-based log files which are slow and consume disk space.
 
 - The ETW provider for this password filter is 07d83223-7594-4852-babc-784803fdf6c5. So for example, you can enable tracing of the
-password filter on the next boot of the machine with: logman create trace autosession\PassFiltEx -o
-%SystemRoot%\Debug\PassFiltEx.etl -p "{07d83223-7594-4852-babc-784803fdf6c5}" 0xFFFFFFFF -ets
+  password filter on the next boot of the machine with: logman create trace autosession\PassFiltEx -o
+  %SystemRoot%\Debug\PassFiltEx.etl -p "{07d83223-7594-4852-babc-784803fdf6c5}" 0xFFFFFFFF -ets
 
 - The trace will start when you reboot. To stop the trace, run:
-logman stop PassFiltEx -ets && logman delete autosession\PassFiltEx -ets
+  logman stop PassFiltEx -ets && logman delete autosession\PassFiltEx -ets
 
 - The StartTracingAtBoot.cmd and StopTracingAtBoot.cmd files provided contain these commands.
 
 - The other files, StartTracing.cmd and StopTracing.cmd will also enable the tracing, but the tracing will not persist across reboots.
 
 - Collect the *.etl file that is generated in the C:\Windows\debug directory. Then open the ETL file with a tool such as Microsoft
-Message Analyzer. (There are other tools that understand ETW as well. Use what you like.) Add the "payload" as a Column, and
-decode the payload column as Unicode. Then it should look like a normal, human-readable text log.
+  Message Analyzer. (There are other tools that understand ETW as well. Use what you like.) Add the "payload" as a Column, and
+  decode the payload column as Unicode. Then it should look like a normal, human-readable text log.
 
 ![starttrace](trace1.png "start the trace")
 
@@ -137,11 +144,11 @@ decode the payload column as Unicode. Then it should look like a normal, human-r
 ![etw1](ma3.png "view trace with Message Analyzer")
 
 - In the trace log above, you see an administrator attempting to set the password for the user hunter2.
-If the user had been attempting to reset their own password, the log would say "CHANGE password" instead of "SET password".
-Notice that the password is rejected numerous times. I tried to set the password to starwars, starwars1, Starwars1!, etc., but
-they all were rejected because the blacklist contains the token starwars. However, I eventually attempted to set the password
-to Starwars1!DarthVader, and that password was accepted because even though it contains the token starwars, more than 50% of the
-password is NOT starwars.
+  If the user had been attempting to reset their own password, the log would say "CHANGE password" instead of "SET password".
+  Notice that the password is rejected numerous times. I tried to set the password to starwars, starwars1, Starwars1!, etc., but
+  they all were rejected because the blacklist contains the token starwars. However, I eventually attempted to set the password
+  to Starwars1!DarthVader, and that password was accepted because even though it contains the token starwars, more than 50% of the
+  password is NOT starwars.
 
 
 Coding Guidelines:
@@ -151,28 +158,27 @@ Coding Guidelines:
 - C only. (I want to avoid C++ for a few different reasons.)
 
 - Compile with All Warnings (/Wall). Project should compile with 0 warnings. You MAY temporarily disable warnings with #pragmas if
-the warnings are too pedantic (e.g. don't warn me about adding padding bytes to structs or that a function was inlined.)
+  the warnings are too pedantic (e.g. don't warn me about adding padding bytes to structs or that a function was inlined.)
 
 - MSVC 2017 was the IDE I used originally. You can use something else if you have a good reason to though.
 
 - Use a static analyzer. The MSVC IDE comes with Code Analysis. Put it on "All Rules". You shouldn't trigger any Code Analysis
-warnings.
+  warnings.
 
 - Define UNICODE.
 
 - Prefix global symbols with a lower-case g, no underscore. (E.g. gGlobalVar, not g_GlobalVar)
 
 - Hungarian notation not necessary. Use descriptive variable names. We don't use 80-character terminals any more; it's OK to type
-it out.
+  it out.
 
 - Comments are good but don't make a lot of comments about what the code does - instead write comments about _why_ you're doing
-what you're doing.
+  what you're doing.
 
 - This code ABSOLUTELY MUST NOT CRASH. If it crashes, it will crash the lsass process of the domain controller, which will in turn
-reboot the domain controller. It can even render a domain controller unbootable. You'd need to boot the machine from alternate
-media and edit the registry offline to remove the password filter from the registry. Therefore, this code must be immaculate
-and as reliable as you can possibly imagine. Avoid being "clever" and just write "boring" code.
-
+  reboot the domain controller. It can even render a domain controller unbootable. You'd need to boot the machine from alternate
+  media and edit the registry offline to remove the password filter from the registry. Therefore, this code must be immaculate
+  and as reliable as you can possibly imagine. Avoid being "clever" and just write "boring" code.
 */
 
 #define WIN32_LEAN_AND_MEAN
@@ -207,7 +213,6 @@ and as reliable as you can possibly imagine. Avoid being "clever" and just write
 #include "PassFiltEx.h"
 
 
-
 REGHANDLE gEtwRegHandle;
 
 HANDLE gBlacklistThread;
@@ -222,22 +227,9 @@ FILETIME gBlackListNewFileTime;
 
 LARGE_INTEGER gPerformanceFrequency;
 
-// The default is 60. So if a blacklisted token comprises 60% or more of the entire password
-// the password is rejected.
-
 DWORD gTokenPercentageOfPassword = 60;
 
-// Current working directory is %systemroot%\System32\, but you can use fully qualified paths too.
-// Even UNC paths if you wanted!
-
 wchar_t gBlacklistFileName[256] = { L"PassFiltExBlacklist.txt" };
-
-// This is a bitmask that enforces the requirement to use specific classes of characters, e.g.:
-// Lowercase letter, Uppercase letter, Digit, Special char, Unicode char.
-// Active Directory "Password Complexity" enforcement a la Group Policy only requires 3 out of 5 of these character
-// categories. See https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/password-must-meet-complexity-requirements
-// This setting is optional, defaults to 0, but it allows you to require additional character classes above and beyond what Active Directory
-// already enforces with its version of password complexity. You may use it in combination with AD password complexity, or without it.
 
 DWORD gRequireCharClasses;
 
@@ -380,7 +372,7 @@ __declspec(dllexport) NTSTATUS CALLBACK PasswordChangeNotify(_In_ PUNICODE_STRIN
 
 	wchar_t UserNameCopy[257] = { 0 };
 
-	memcpy(&UserNameCopy, UserName->Buffer, UserName->Length);
+	memcpy(&UserNameCopy, UserName->Buffer, UserName->Length);	
 
 	EventWriteStringW2(L"[%s:%s@%d] Password for %s (RID %lu) was changed.", __FILENAMEW__, __FUNCTIONW__, __LINE__, UserNameCopy, RelativeId);
 
@@ -458,11 +450,12 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	// UNICODE_STRINGs are usually not null-terminated.
 	// Let's make a null-terminated copy of it.
 	// MSDN says that the upper limit of sAMAccountName is 256
-	// but SAM is AFAIK restricted to <= 20 characters. Anyway, let's pick a safe buffer size.
+	// but SAM is AFAIK restricted to <= 20 characters.
+	// Anyway, let's pick a safe buffer size.
 
 	wchar_t AccountNameCopy[257] = { 0 };
 
-	wchar_t* PasswordCopy = NULL;
+	wchar_t PasswordCopy[257] = { 0 };
 
 	memcpy(&AccountNameCopy, AccountName->Buffer, AccountName->Length);
 
@@ -473,25 +466,34 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		goto End;
 	}
 
+	memcpy(&PasswordCopy, Password->Buffer, Password->Length);
+
+	// Only print out the password in DEBUG builds. It is a security risk.
+
 	if (SetOperation)
 	{
-		EventWriteStringW2(L"[%s:%s@%d] SET password for user %s.", __FILENAMEW__, __FUNCTIONW__, __LINE__, AccountNameCopy);
+		#ifdef DEBUG
+	
+		EventWriteStringW2(L"[%s:%s@%d] Attempting to SET password for user %s to new value: %s", __FILENAMEW__, __FUNCTIONW__, __LINE__, AccountNameCopy, PasswordCopy);
+
+		#else
+
+		EventWriteStringW2(L"[%s:%s@%d] Attempting to SET password for user %s.", __FILENAMEW__, __FUNCTIONW__, __LINE__, AccountNameCopy);
+
+		#endif
 	}
 	else
 	{
-		EventWriteStringW2(L"[%s:%s@%d] CHANGE password for user %s.", __FILENAMEW__, __FUNCTIONW__, __LINE__, AccountNameCopy);
-	}		
-	
-	if ((PasswordCopy = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, Password->MaximumLength)) == NULL)
-	{
-		EventWriteStringW2(L"[%s:%s@%d] Error allocating memory! Cannot change password!", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+		#ifdef DEBUG
 
-		PasswordIsOK = FALSE;
+		EventWriteStringW2(L"[%s:%s@%d] Attempting to CHANGE password for user %s to new value: %s", __FILENAMEW__, __FUNCTIONW__, __LINE__, AccountNameCopy, PasswordCopy);
 
-		goto End;
+		#else
+
+		EventWriteStringW2(L"[%s:%s@%d] Attempting to CHANGE password for user %s.", __FILENAMEW__, __FUNCTIONW__, __LINE__, AccountNameCopy);
+
+		#endif
 	}
-
-	memcpy(PasswordCopy, Password->Buffer, Password->Length);
 
 	if (Password->Length > 0) 
 	{
@@ -499,6 +501,12 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		{
 			PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);
 		}	
+	}
+	else
+	{
+		EventWriteStringW2(L"[%s:%s@%d] Empty password! Cannot continue.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+
+		goto End;
 	}
 
 	while (CurrentNode != NULL && CurrentNode->Next != NULL)
@@ -525,20 +533,26 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		}
 	}
 
-	for (unsigned int Character = 0; Character < Password->Length; Character++)
+	for (unsigned int Character = 0; Character < wcslen(PasswordCopy); Character++)
 	{
 		if (ContainsLower == FALSE && Password->Buffer[Character] >= 97 && Password->Buffer[Character] <= 122)
 		{
+			EventWriteStringW2(L"[%s:%s@%d]\t - Found a lowercase letter.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+
 			ContainsLower = TRUE;
 		}
 
 		if (ContainsUpper == FALSE && Password->Buffer[Character] >= 65 && Password->Buffer[Character] <= 90)
 		{
+			EventWriteStringW2(L"[%s:%s@%d]\t - Found an uppercase letter.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+
 			ContainsUpper = TRUE;
 		}
 
 		if (ContainsDigit == FALSE && Password->Buffer[Character] >= 48 && Password->Buffer[Character] <= 57)
 		{
+			EventWriteStringW2(L"[%s:%s@%d]\t - Found a digit character.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+
 			ContainsDigit = TRUE;
 		}
 
@@ -549,11 +563,15 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 			(Password->Buffer[Character] >= 123 && Password->Buffer[Character] <= 126) ||
 			(Password->Buffer[Character] >= 128 && Password->Buffer[Character] <= 255))
 		{
+			EventWriteStringW2(L"[%s:%s@%d]\t - Found a special character.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+
 			ContainsSpecial = TRUE;
 		}
 
 		if (ContainsUnicode == FALSE && Password->Buffer[Character] > 255)
 		{
+			EventWriteStringW2(L"[%s:%s@%d]\t - Found a unicode character.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+
 			ContainsUnicode = TRUE;
 		}
 	}
@@ -614,14 +632,14 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	ElapsedMicroseconds.QuadPart /= gPerformanceFrequency.QuadPart;
 
-	EventWriteStringW2(L"[%s:%s@%d] Finished in %llu microseconds.", __FILENAMEW__, __FUNCTIONW__, __LINE__, ElapsedMicroseconds.QuadPart);
+	EventWriteStringW2(L"[%s:%s@%d] Finished in %llu microseconds. Will accept new password: %d", __FILENAMEW__, __FUNCTIONW__, __LINE__, ElapsedMicroseconds.QuadPart, PasswordIsOK);
 
-	if (PasswordCopy != NULL)
-	{
-		SecureZeroMemory(PasswordCopy, Password->Length);
+	//if (PasswordCopy != NULL)
+	//{
+	//	SecureZeroMemory(PasswordCopy, Password->Length);
 
-		HeapFree(GetProcessHeap(), 0, PasswordCopy);
-	}	
+	//	HeapFree(GetProcessHeap(), 0, PasswordCopy);
+	//}	
 
 	LeaveCriticalSection(&gBlacklistCritSec);
 
@@ -830,7 +848,9 @@ ULONG EventWriteStringW2(_In_ PCWSTR String, _In_ ...)
 	va_end(ArgPointer);
 	
 #if DEBUG
-	wprintf(L"%ls\r\n", FormattedString);
+	wprintf(L"%ls\r\n", FormattedString);	// Also print to console for easier debugging.
+
+	OutputDebugStringW(FormattedString);	// Also print to DebugOut for easier debugging.
 #endif
 
 	return(EventWriteString(gEtwRegHandle, 0, 0, FormattedString));
@@ -909,9 +929,9 @@ DWORD UpdateConfigurationFromRegistry(void)
 
 		if (gTokenPercentageOfPassword > 100)
 		{
-			EventWriteStringW2(L"[%s:%s@%d] WARNING: %s was greater than 100%%, which does not make sense. Defaulting to 50%%.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD);
+			EventWriteStringW2(L"[%s:%s@%d] WARNING: %s was greater than 100%%, which does not make sense. Defaulting to 60%%.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD);
 
-			gTokenPercentageOfPassword = 50;
+			gTokenPercentageOfPassword = 60;
 		}
 	}
 
