@@ -60,6 +60,9 @@ Operation:
 
 	**TokenPercentageOfPassword**, REG_DWORD, Default: 60
 	
+	**RequireCharClasses**, REG_DWORD, Default: 0
+	
+	
 ![regedit](regedit2.png "optional reg entries")	
 	
   **BlacklistFileName** allows you to specify a custom path to a blacklist file. By default if there is nothing specified, it is
@@ -76,7 +79,14 @@ Operation:
   be rejected, because more than 60% of the proposed password is made up of the blacklisted term starwars. However, the 
   password starwars1!DarthVader88 would be accepted, because even though it contains the blacklisted sequence starwars, more
   than 60% of the proposed password is NOT starwars.
+  
+  **RequireCharClasses** allows you to require even more categories of characters over the built-in Active Directory
+  password complexity rules configured via Group Policy. The built-in AD password complexity rules only require 3 out of 5
+  possible different types of characters: Uppercase, Lowercase, Digit, Special, and Unicode. This registry setting allows you
+  to require 4 or even 5 out of the 5 possible different character types. You may use this registry setting either in combination
+  with the built-in AD password complexity, or without it.
 
+  
 - Comparisons are NOT case sensitive.
 
 - The blacklist is reloaded every 60 seconds, so feel free to edit the blacklist file at will. The password filter will read the 

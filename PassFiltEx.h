@@ -15,7 +15,6 @@
 #define BLACKLIST_THREAD_RUN_FREQUENCY 60000
 
 
-
 // The registry subkey that this DLL loads configuration from.
 
 #define FILTER_REG_SUBKEY L"SOFTWARE\\PassFiltEx"
@@ -26,6 +25,19 @@
 
 #define FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD L"TokenPercentageOfPassword"
 
+#define FILTER_REG_REQUIRE_CHAR_CLASSES L"RequireCharClasses"
+
+
+#define CHARACTER_CLASS_LOWERCASE 1
+
+#define CHARACTER_CLASS_UPPERCASE 2
+
+#define CHARACTER_CLASS_DIGIT     4
+
+#define CHARACTER_CLASS_SPECIAL   8
+
+#define CHARACTER_CLASS_UNICODE   16
+
 
 typedef struct BADSTRING
 {
@@ -34,7 +46,6 @@ typedef struct BADSTRING
 	struct BADSTRING* Next;
 
 } BADSTRING;
-
 
 
 BOOL WINAPI DllMain(_In_ HINSTANCE DLLHandle, _In_ DWORD Reason, _In_ LPVOID Reserved);

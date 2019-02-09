@@ -78,6 +78,13 @@ be rejected, because more than 60% of the proposed password is made up of the bl
 password starwars1!DarthVader88 would be accepted, because even though it contains the blacklisted sequence starwars, more
 than 60% of the proposed password is NOT starwars.
 
+**RequireCharClasses** allows you to require even more categories of characters over the built-in Active Directory
+password complexity rules configured via Group Policy. The built-in AD password complexity rules only require 3 out of 5
+possible different types of characters: Uppercase, Lowercase, Digit, Special, and Unicode. This registry setting allows you
+to require 4 or even 5 out of the 5 possible different character types. You may use this registry setting either in combination
+with the built-in AD password complexity, or without it.
+
+
 - Comparisons are NOT case sensitive.
 
 - The blacklist is reloaded every 60 seconds, so feel free to edit the blacklist file at will. The password filter will read the
@@ -222,6 +229,15 @@ DWORD gTokenPercentageOfPassword = 60;
 // Even UNC paths if you wanted!
 
 wchar_t gBlacklistFileName[256] = { L"PassFiltExBlacklist.txt" };
+
+// This is a bitmask that enforces the requirement to use specific classes of characters, e.g.:
+// Lowercase letter, Uppercase letter, Digit, Special char, Unicode char.
+// Active Directory "Password Complexity" enforcement a la Group Policy only requires 3 out of 5 of these character
+// categories. See https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/password-must-meet-complexity-requirements
+// This setting is optional, defaults to 0, but it allows you to require additional character classes above and beyond what Active Directory
+// already enforces with its version of password complexity. You may use it in combination with AD password complexity, or without it.
+
+DWORD gRequireCharClasses;
 
 
 
@@ -415,11 +431,21 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	BOOL PasswordIsOK = TRUE;
 
+	BOOL ContainsLower = FALSE;
+
+	BOOL ContainsUpper = FALSE;
+
+	BOOL ContainsDigit = FALSE;
+
+	BOOL ContainsSpecial = FALSE;
+
+	BOOL ContainsUnicode = FALSE;
+
 	LARGE_INTEGER StartTime = { 0 };
 
 	LARGE_INTEGER EndTime = { 0 };
 
-	LARGE_INTEGER ElapsedMicroseconds = { 0 };
+	LARGE_INTEGER ElapsedMicroseconds = { 0 };	
 
 	EnterCriticalSection(&gBlacklistCritSec);
 
@@ -492,10 +518,89 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 				PasswordIsOK = FALSE;
 
-				break;
+				goto End;
 			}
 		}
 	}
+
+	for (unsigned int Character = 0; Character < Password->Length; Character++)
+	{
+		if (ContainsLower == FALSE && Password->Buffer[Character] >= 97 && Password->Buffer[Character] <= 122)
+		{
+			ContainsLower = TRUE;
+		}
+
+		if (ContainsUpper == FALSE && Password->Buffer[Character] >= 65 && Password->Buffer[Character] <= 90)
+		{
+			ContainsUpper = TRUE;
+		}
+
+		if (ContainsDigit == FALSE && Password->Buffer[Character] >= 48 && Password->Buffer[Character] <= 57)
+		{
+			ContainsDigit = TRUE;
+		}
+
+		if (ContainsSpecial == FALSE && 
+			(Password->Buffer[Character] >= 32 && Password->Buffer[Character] <= 47) || 
+			(Password->Buffer[Character] >= 58 && Password->Buffer[Character] <= 64) ||
+			(Password->Buffer[Character] >= 91 && Password->Buffer[Character] <= 96) ||
+			(Password->Buffer[Character] >= 123 && Password->Buffer[Character] <= 126) ||
+			(Password->Buffer[Character] >= 128 && Password->Buffer[Character] <= 255))
+		{
+			ContainsSpecial = TRUE;
+		}
+
+		if (ContainsUnicode == FALSE && Password->Buffer[Character] > 255)
+		{
+			ContainsUnicode = TRUE;
+		}
+	}
+
+	if ((gRequireCharClasses & CHARACTER_CLASS_LOWERCASE) && ContainsLower == FALSE)
+	{
+		PasswordIsOK = FALSE;
+
+		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require lowercase letters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+
+		goto End;
+	}
+
+	if ((gRequireCharClasses & CHARACTER_CLASS_UPPERCASE) && ContainsUpper == FALSE)
+	{
+		PasswordIsOK = FALSE;
+
+		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require uppercase letters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+
+		goto End;
+	}
+
+	if ((gRequireCharClasses & CHARACTER_CLASS_DIGIT) && ContainsDigit == FALSE)
+	{
+		PasswordIsOK = FALSE;
+
+		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require digits, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+
+		goto End;
+	}
+
+	if ((gRequireCharClasses & CHARACTER_CLASS_SPECIAL) && ContainsSpecial == FALSE)
+	{
+		PasswordIsOK = FALSE;
+
+		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require special characters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+
+		goto End;
+	}
+
+	if ((gRequireCharClasses & CHARACTER_CLASS_UNICODE) && ContainsUnicode == FALSE)
+	{
+		PasswordIsOK = FALSE;
+
+		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require unicode characters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+
+		goto End;
+	}
+
 
 	End:
 
@@ -581,6 +686,7 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 
 			// Need to clear blacklist and free memory first.
 			BADSTRING* CurrentNode = gBlacklistHead;
+
 			BADSTRING* NextNode = CurrentNode->Next;
 
 			while (NextNode != NULL)
@@ -805,6 +911,26 @@ DWORD UpdateConfigurationFromRegistry(void)
 
 			gTokenPercentageOfPassword = 50;
 		}
+	}
+
+	RegDataSize = (DWORD)sizeof(DWORD);
+
+	if ((Status = RegGetValueW(SubKeyHandle, NULL, FILTER_REG_REQUIRE_CHAR_CLASSES, RRF_RT_DWORD, NULL, &gRequireCharClasses, &RegDataSize)) != ERROR_SUCCESS)
+	{
+		if (Status == ERROR_FILE_NOT_FOUND)
+		{
+			EventWriteStringW2(L"[%s:%s@%d] Registry value %s was not found. Using previous value %lu", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES, gRequireCharClasses);
+
+			Status = ERROR_SUCCESS;
+		}
+		else
+		{
+			EventWriteStringW2(L"[%s:%s@%d] Failed to read registry value %s! Error 0x%08lx", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES, Status);
+		}
+	}
+	else
+	{
+		EventWriteStringW2(L"[%s:%s@%d] Successfully read registry value %s. Data: %lu", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES, gRequireCharClasses);
 	}
 
 Exit:
