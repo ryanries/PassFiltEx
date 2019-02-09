@@ -82,7 +82,9 @@ than 60% of the proposed password is NOT starwars.
 password complexity rules configured via Group Policy. The built-in AD password complexity rules only require 3 out of 5
 possible different types of characters: Uppercase, Lowercase, Digit, Special, and Unicode. This registry setting allows you
 to require 4 or even 5 out of the 5 possible different character types. You may use this registry setting either in combination
-with the built-in AD password complexity, or without it.
+with the built-in AD password complexity, or without it. The value is a bitfield where 1 = require lower, 2 = require upper,
+4 = require digit, 8 = require special, and 16 = require unicode. You can add these flags together to make combinations. E.g.,
+a value of 15 (decimal) means "require lower AND upper AND digit AND special, but not unicode."
 
 
 - Comparisons are NOT case sensitive.
