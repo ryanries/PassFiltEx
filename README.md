@@ -152,9 +152,9 @@ Debugging:
 
 Coding Guidelines:
 
-- Want to contibute? Cool! I'd like to stick to these rules:
+- Want to contribute? Cool! I'd like to stick to these rules:
 
-- C only. (I want to avoid C++ for a few different reasons.)
+- C only. (No C++, at least not in the filter itself.)
 
 - Compile with All Warnings (/Wall). Project should compile with 0 warnings. You MAY temporarily disable warnings with #pragmas if
   the warnings are too pedantic (e.g. don't warn me about adding padding bytes to structs or that a function was inlined.)
@@ -168,7 +168,7 @@ Coding Guidelines:
 
 - Prefix global symbols with a lower-case g, no underscore. (E.g. gGlobalVar, not g_GlobalVar)
 
-- Hungarian notation not necessary. Use descriptive variable names. We don't use 80-character terminals any more; it's OK to type
+- Hungarian notation not necessary. Use descriptive variable names. We don't use 80-character terminals anymore; it's OK to type
   it out.
 
 - Comments are good but don't make a lot of comments about what the code does - instead write comments about _why_ you're doing
