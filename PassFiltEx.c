@@ -175,6 +175,7 @@ Coding Guidelines:
 - Comments are good but don't make a lot of comments about what the code does - instead write comments about _why_ you're doing
   what you're doing.
 
+
 - This code ABSOLUTELY MUST NOT CRASH. If it crashes, it will crash the lsass process of the domain controller, which will in turn
   reboot the domain controller. It can even render a domain controller unbootable. You'd need to boot the machine from alternate
   media and edit the registry offline to remove the password filter from the registry. Therefore, this code must be immaculate
@@ -466,6 +467,10 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		goto End;
 	}
 
+	// In my testing, lsass did not call this password filter if the password was greater than 256 characters.
+	// Instead, the password change was rejected before any filters were called. Therefore, with a buffer of
+	// 257 characters, I think an overflow is impossible.
+	
 	memcpy(&PasswordCopy, Password->Buffer, Password->Length);
 
 	// Only print out the password in DEBUG builds. It is a security risk.
