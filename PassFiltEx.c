@@ -3,7 +3,7 @@ PassFiltEx.c
 
 # PassFiltEx by Joseph Ryan Ries
 
-Author: Joseph Ryan Ries 2018 <ryanries09@gmail.com> <ryan.ries@microsoft.com>
+Author: Joseph Ryan Ries 2019 <ryanries09@gmail.com> <ryan.ries@microsoft.com>
 
 A password filter for Active Directory that uses a blacklist of bad passwords/character sequences.
 
@@ -373,7 +373,7 @@ __declspec(dllexport) NTSTATUS CALLBACK PasswordChangeNotify(_In_ PUNICODE_STRIN
 
 	wchar_t UserNameCopy[257] = { 0 };
 
-	memcpy(&UserNameCopy, UserName->Buffer, UserName->Length);	
+	memcpy_s(&UserNameCopy, sizeof(UserNameCopy) - 1, UserName->Buffer, UserName->Length);
 
 	EventWriteStringW2(L"[%s:%s@%d] Password for %s (RID %lu) was changed.", __FILENAMEW__, __FUNCTIONW__, __LINE__, UserNameCopy, RelativeId);
 
@@ -458,7 +458,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	wchar_t PasswordCopy[257] = { 0 };
 
-	memcpy(&AccountNameCopy, AccountName->Buffer, AccountName->Length);
+	memcpy_s(&AccountNameCopy, sizeof(AccountNameCopy) - 1, AccountName->Buffer, AccountName->Length);
 
 	if (_wcsicmp(AccountNameCopy, L"krbtgt") == 0)
 	{
@@ -467,11 +467,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		goto End;
 	}
 
-	// In my testing, lsass did not call this password filter if the password was greater than 256 characters.
-	// Instead, the password change was rejected before any filters were called. Therefore, with a buffer of
-	// 257 characters, I think an overflow is impossible.
-	
-	memcpy(&PasswordCopy, Password->Buffer, Password->Length);
+	memcpy_s(&PasswordCopy, sizeof(PasswordCopy) - 1, Password->Buffer, Password->Length);
 
 	// Only print out the password in DEBUG builds. It is a security risk.
 
@@ -562,11 +558,11 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		}
 
 		if (ContainsSpecial == FALSE && 
-			(Password->Buffer[Character] >= 32 && Password->Buffer[Character] <= 47) || 
+			((Password->Buffer[Character] >= 32 && Password->Buffer[Character] <= 47) || 
 			(Password->Buffer[Character] >= 58 && Password->Buffer[Character] <= 64) ||
 			(Password->Buffer[Character] >= 91 && Password->Buffer[Character] <= 96) ||
 			(Password->Buffer[Character] >= 123 && Password->Buffer[Character] <= 126) ||
-			(Password->Buffer[Character] >= 128 && Password->Buffer[Character] <= 255))
+			(Password->Buffer[Character] >= 128 && Password->Buffer[Character] <= 255)))
 		{
 			EventWriteStringW2(L"[%s:%s@%d]\t - Found a special character.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
 
@@ -639,12 +635,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	EventWriteStringW2(L"[%s:%s@%d] Finished in %llu microseconds. Will accept new password: %d", __FILENAMEW__, __FUNCTIONW__, __LINE__, ElapsedMicroseconds.QuadPart, PasswordIsOK);
 
-	//if (PasswordCopy != NULL)
-	//{
-	//	SecureZeroMemory(PasswordCopy, Password->Length);
-
-	//	HeapFree(GetProcessHeap(), 0, PasswordCopy);
-	//}	
+	RtlSecureZeroMemory(Password, Password->Length);
 
 	LeaveCriticalSection(&gBlacklistCritSec);
 
@@ -680,7 +671,11 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 
 		if ((BlacklistFileHandle = CreateFile(gBlacklistFileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)) == INVALID_HANDLE_VALUE)
 		{
-			EventWriteStringW2(L"[%s:%s@%d] Unable to open %s! Error 0x%08lx", __FILENAMEW__, __FUNCTIONW__, __LINE__, gBlacklistFileName, GetLastError());
+			wchar_t CurrentDir[MAX_PATH] = { 0 };
+
+			GetCurrentDirectoryW(MAX_PATH, CurrentDir);
+
+			EventWriteStringW2(L"[%s:%s@%d] Unable to open %s in directory %s! Error 0x%08lx", __FILENAMEW__, __FUNCTIONW__, __LINE__, gBlacklistFileName, CurrentDir, GetLastError());
 
 			goto Sleep;
 		}
