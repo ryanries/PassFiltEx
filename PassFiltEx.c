@@ -635,7 +635,9 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	EventWriteStringW2(L"[%s:%s@%d] Finished in %llu microseconds. Will accept new password: %d", __FILENAMEW__, __FUNCTIONW__, __LINE__, ElapsedMicroseconds.QuadPart, PasswordIsOK);
 
-	RtlSecureZeroMemory(Password, Password->Length);
+	RtlSecureZeroMemory(&Password, Password->Length);
+
+	RtlSecureZeroMemory(PasswordCopy, sizeof(PasswordCopy));
 
 	LeaveCriticalSection(&gBlacklistCritSec);
 

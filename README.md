@@ -2,7 +2,7 @@ PassFiltEx.c
 
 # PassFiltEx by Joseph Ryan Ries
 
-Author: Joseph Ryan Ries 2018 <ryanries09@gmail.com> <ryan.ries@microsoft.com>
+Author: Joseph Ryan Ries 2019 <ryanries09@gmail.com> <ryan.ries@microsoft.com>
 
 A password filter for Active Directory that uses a blacklist of bad passwords/character sequences.
 
