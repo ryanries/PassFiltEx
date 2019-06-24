@@ -498,7 +498,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	if (Password->Length > 0) 
 	{
-		for (unsigned int Counter = 0; Counter < wcslen(PasswordCopy) - 1; Counter++)
+		for (unsigned int Counter = 0; Counter < wcslen(PasswordCopy); Counter++)
 		{
 			PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);
 		}	
@@ -506,6 +506,8 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	else
 	{
 		EventWriteStringW2(L"[%s:%s@%d] Empty password! Cannot continue.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+
+		PasswordIsOK = FALSE;
 
 		goto End;
 	}
