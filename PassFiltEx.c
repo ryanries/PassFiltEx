@@ -637,7 +637,10 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	EventWriteStringW2(L"[%s:%s@%d] Finished in %llu microseconds. Will accept new password: %d", __FILENAMEW__, __FUNCTIONW__, __LINE__, ElapsedMicroseconds.QuadPart, PasswordIsOK);
 
-	RtlSecureZeroMemory(&Password, Password->Length);
+	
+	// NOTE: Despite what the MSDN documentation says, we should NOT be clearing the original password buffer that was passed in to us by Windows.
+	// We only need to clear any _copies_ of the password that we have made.
+	//RtlSecureZeroMemory(&Password, Password->Length);
 
 	RtlSecureZeroMemory(PasswordCopy, sizeof(PasswordCopy));
 
