@@ -467,6 +467,13 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		goto End;
 	}
 
+	if (wcsncmp(L"krbtgt_", AccountNameCopy, wcslen(L"krbtgt_")) == 0)
+	{
+		EventWriteStringW2(L"[%s:%s@%d] Always allowing password change for RODC krbtgt account.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+
+		goto End;
+	}
+
 	memcpy_s(&PasswordCopy, sizeof(PasswordCopy) - 1, Password->Buffer, Password->Length);
 
 	// Only print out the password in DEBUG builds. It is a security risk.
