@@ -3,16 +3,13 @@
 #pragma once
 
 
-// Disable warnings about adding padding bytes to structs.
-#pragma warning(disable: 4820)
-
 #define __FILENAMEW__ (wcsrchr(__FILEW__, L'\\') ? wcsrchr(__FILEW__, L'\\') + 1 : __FILEW__)
 
-#define ETW_MAX_STRING_SIZE 2048
+#define ETW_MAX_STRING_SIZE				2048
 
-#define MAX_BLACKLIST_STRING_SIZE 32
+#define MAX_BLACKLIST_STRING_SIZE		32
 
-#define BLACKLIST_THREAD_RUN_FREQUENCY 60000
+#define BLACKLIST_THREAD_RUN_FREQUENCY	60000
 
 
 // The registry subkey that this DLL loads configuration from.
@@ -37,6 +34,8 @@
 #define CHARACTER_CLASS_SPECIAL   8
 
 #define CHARACTER_CLASS_UNICODE   16
+
+#define CHARACTER_CLASS_EITHER_UPPER_OR_LOWER	32
 
 
 typedef struct BADSTRING

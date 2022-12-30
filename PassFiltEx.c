@@ -86,11 +86,11 @@ Operation:
   possible different types of characters: Uppercase, Lowercase, Digit, Special, and Unicode. This registry setting allows you
   to require 4 or even 5 out of the 5 possible different character types. You may use this registry setting either in combination
   with the built-in AD password complexity, or without it. The value is a bitfield where 1 = require lower, 2 = require upper,
-  4 = require digit, 8 = require special, and 16 = require unicode. You can add these flags together to make combinations. E.g.,
+  4 = require digit, 8 = require special, 16 = require unicode, and 32 = require either lower or upper. You can add these flags together to make combinations. E.g.,
   a value of 15 (decimal) means "require lower AND upper AND digit AND special, but not unicode."
 
 
-- Comparisons are NOT case sensitive.
+- Comparisons are NOT case sensitive. The user's final password, once approved, will of course remain case sensitive though.
 
 - The blacklist is reloaded every 60 seconds, so feel free to edit the blacklist file at will. The password filter will read the
   new updates within a minute.
@@ -184,21 +184,19 @@ Coding Guidelines:
 
 #define WIN32_LEAN_AND_MEAN
 
-#ifndef  UNICODE
-
-#define UNICODE
-
-#endif
-
 // Disable warnings about functions being inlined or not inlined.
 #pragma warning(disable: 4710)
 
 #pragma warning(disable: 4711)
 
-// Temporarily disable warnings in header files over which I have no control.
-#pragma warning(push, 0)
+// Disable warning about /Qspectre comiler switch
+#pragma warning(disable: 5045)
+
+#define WIN32_NO_STATUS
 
 #include <Windows.h>
+
+#undef WIN32_NO_STATUS
 
 #include <NTSecAPI.h>
 
@@ -207,9 +205,6 @@ Coding Guidelines:
 #include <evntprov.h>
 
 #include <stdio.h>
-
-// Restore warnings.
-#pragma warning(pop)
 
 #include "PassFiltEx.h"
 
@@ -545,28 +540,28 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	for (unsigned int Character = 0; Character < wcslen(PasswordCopy); Character++)
 	{
-		if (ContainsLower == FALSE && Password->Buffer[Character] >= 97 && Password->Buffer[Character] <= 122)
+		if ((ContainsLower == FALSE) && (Password->Buffer[Character] >= 97) && (Password->Buffer[Character] <= 122))
 		{
 			EventWriteStringW2(L"[%s:%s@%d]\t - Found a lowercase letter.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
 
 			ContainsLower = TRUE;
 		}
 
-		if (ContainsUpper == FALSE && Password->Buffer[Character] >= 65 && Password->Buffer[Character] <= 90)
+		if ((ContainsUpper == FALSE) && (Password->Buffer[Character] >= 65) && (Password->Buffer[Character] <= 90))
 		{
 			EventWriteStringW2(L"[%s:%s@%d]\t - Found an uppercase letter.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
 
 			ContainsUpper = TRUE;
 		}
 
-		if (ContainsDigit == FALSE && Password->Buffer[Character] >= 48 && Password->Buffer[Character] <= 57)
+		if ((ContainsDigit == FALSE) && (Password->Buffer[Character] >= 48) && (Password->Buffer[Character] <= 57))
 		{
 			EventWriteStringW2(L"[%s:%s@%d]\t - Found a digit character.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
 
 			ContainsDigit = TRUE;
 		}
 
-		if (ContainsSpecial == FALSE && 
+		if ((ContainsSpecial == FALSE) && 
 			((Password->Buffer[Character] >= 32 && Password->Buffer[Character] <= 47) || 
 			(Password->Buffer[Character] >= 58 && Password->Buffer[Character] <= 64) ||
 			(Password->Buffer[Character] >= 91 && Password->Buffer[Character] <= 96) ||
@@ -578,7 +573,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 			ContainsSpecial = TRUE;
 		}
 
-		if (ContainsUnicode == FALSE && Password->Buffer[Character] > 255)
+		if ((ContainsUnicode == FALSE) && (Password->Buffer[Character] > 255))
 		{
 			EventWriteStringW2(L"[%s:%s@%d]\t - Found a unicode character.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
 
@@ -586,22 +581,36 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		}
 	}
 
-	if ((gRequireCharClasses & CHARACTER_CLASS_LOWERCASE) && ContainsLower == FALSE)
+	if ((gRequireCharClasses & CHARACTER_CLASS_LOWERCASE) && (ContainsLower == FALSE))
 	{
-		PasswordIsOK = FALSE;
+		if ((gRequireCharClasses & CHARACTER_CLASS_EITHER_UPPER_OR_LOWER) && (ContainsUpper == TRUE))
+		{
+			EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require either uppercase or lowercase letters. Password contains uppercase letters but no lowercase letters. Password is OK so far.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+		}
+		else
+		{
+			PasswordIsOK = FALSE;
 
-		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require lowercase letters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+			EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require lowercase letters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
 
-		goto End;
+			goto End;
+		}
 	}
 
-	if ((gRequireCharClasses & CHARACTER_CLASS_UPPERCASE) && ContainsUpper == FALSE)
+	if ((gRequireCharClasses & CHARACTER_CLASS_UPPERCASE) && (ContainsUpper == FALSE))
 	{
-		PasswordIsOK = FALSE;
+		if ((gRequireCharClasses & CHARACTER_CLASS_EITHER_UPPER_OR_LOWER) && (ContainsLower == TRUE))
+		{
+			EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require either uppercase or lowercase letters. Password contains lowercase letters but no uppercase letters. Password is OK so far.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+		}
+		else
+		{
+			PasswordIsOK = FALSE;
 
-		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require uppercase letters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+			EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require uppercase letters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
 
-		goto End;
+			goto End;
+		}
 	}
 
 	if ((gRequireCharClasses & CHARACTER_CLASS_DIGIT) && ContainsDigit == FALSE)

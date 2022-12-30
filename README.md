@@ -87,7 +87,7 @@ Operation:
   possible different types of characters: Uppercase, Lowercase, Digit, Special, and Unicode. This registry setting allows you
   to require 4 or even 5 out of the 5 possible different character types. You may use this registry setting either in combination
   with the built-in AD password complexity, or without it. The value is a bitfield where 1 = require lower, 2 = require upper,
-  4 = require digit, 8 = require special, and 16 = require unicode. You can add these flags together to make combinations. E.g.,
+  4 = require digit, 8 = require special, 16 = require unicode, and 32 = require either upper or lowercase. You can add these flags together to make combinations. E.g.,
   a value of 15 (decimal) means "require lower AND upper AND digit AND special, but not unicode."
 
   
