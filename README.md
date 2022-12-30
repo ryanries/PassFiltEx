@@ -86,12 +86,24 @@ Operation:
   password complexity rules configured via Group Policy. The built-in AD password complexity rules only require 3 out of 5
   possible different types of characters: Uppercase, Lowercase, Digit, Special, and Unicode. This registry setting allows you
   to require 4 or even 5 out of the 5 possible different character types. You may use this registry setting either in combination
-  with the built-in AD password complexity, or without it. The value is a bitfield where 1 = require lower, 2 = require upper,
-  4 = require digit, 8 = require special, 16 = require unicode, and 32 = require either upper or lowercase. You can add these flags together to make combinations. E.g.,
-  a value of 15 (decimal) means "require lower AND upper AND digit AND special, but not unicode."
+  with the built-in AD password complexity, or without it. The value is a bitfield where:
+
+  - 1 = require lower
+
+  - 2 = require upper
+
+  - 4 = require digit
+
+  - 8 = require special
+
+  - 16 = require unicode
+
+  - 32 = require either upper or lowercase. 
+
+  You can add these flags together to make combinations. For example, a value of 15 (decimal) means "require lower AND upper AND digit AND special, but not unicode."
 
   
-- Comparisons are NOT case sensitive.
+- Comparisons are NOT case sensitive. (Though the final password will of course still be case sensitive.)
 
 - The blacklist is reloaded every 60 seconds, so feel free to edit the blacklist file at will. The password filter will read the 
   new updates within a minute.
