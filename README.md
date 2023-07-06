@@ -4,7 +4,7 @@ PassFiltEx.c
 
 # PassFiltEx by Joseph Ryan Ries
 
-Author: Joseph Ryan Ries 2019 <ryanries09@gmail.com> <ryan.ries@microsoft.com>
+Author: Joseph Ryan Ries 2019-2023 <ryanries09@gmail.com> <ryan.ries@microsoft.com>
 
 A password filter for Active Directory that uses a blacklist of bad passwords/character sequences.
 
@@ -62,7 +62,18 @@ Operation:
 
 	**TokenPercentageOfPassword**, REG_DWORD, Default: 60
 	
-	**RequireCharClasses**, REG_DWORD, Default: 0
+	**RequireEitherLowerOrUpper**, REG_DWORD, Default: 0
+	
+	**MinLower**, REG_DWORD, Default: 0
+	
+	**MinUpper**, REG_DWORD, Default: 0
+	
+	**MinDigit**, REG_DWORD, Default: 0
+	
+	**MinSpecial**, REG_DWORD, Default: 0
+	
+	**MinUnicode**, REG_DWORD, Default: 0
+	
 	
 	
 ![regedit](regedit2.png "optional reg entries")	
@@ -82,33 +93,21 @@ Operation:
   password starwars1!DarthVader88 would be accepted, because even though it contains the blacklisted sequence starwars, more
   than 60% of the proposed password is NOT starwars.
   
-  **RequireCharClasses** allows you to require even more categories of characters over the built-in Active Directory
-  password complexity rules configured via Group Policy. The built-in AD password complexity rules only require 3 out of 5
-  possible different types of characters: Uppercase, Lowercase, Digit, Special, and Unicode. This registry setting allows you
-  to require 4 or even 5 out of the 5 possible different character types. You may use this registry setting either in combination
-  with the built-in AD password complexity, or without it. The value is a bitfield where:
-
-  - 1 = require lower
-
-  - 2 = require upper
-
-  - 4 = require digit
-
-  - 8 = require special
-
-  - 16 = require unicode
-
-  - 32 = require either upper or lowercase. 
-
-  You can add these flags together to make combinations. For example, a value of 15 (decimal) means "require lower AND upper AND digit AND special, but not unicode."
+  **MinLower/MinUpper/etc.** allows you to specify if you require the user's password to contain multiple instances of any
+  given character class. For example setting MinDigit to 2 will require passwords to contain at least 2 digits.
+  
 
   
 - Comparisons are NOT case sensitive. (Though the final password will of course still be case sensitive.)
 
 - The blacklist is reloaded every 60 seconds, so feel free to edit the blacklist file at will. The password filter will read the 
   new updates within a minute.
+  
+- Registry settings are re-read every 60 seconds as well so you can change the registry settings without having to restart the whole machine.
+  
+- All registry settings are optional. They do not need to exist. If a registry setting does not exist, the default is used.
 
-- No Unicode support at this time. Everything is ASCII/ANSI. (You can still use Unicode characters in your passwords, but Unicode 
+- Unicode support is not thoroughly tested or reliable at this time. Everything is ASCII/ANSI. (You can still use Unicode characters in your passwords, but Unicode 
   characters will not match against anything in the blacklist.)
 
 - Either Windows or Unix line endings (either \r\n or \n) in the blacklist file should both work. (Notepad++ is a good editor for 
@@ -129,6 +128,8 @@ Debugging:
 - The RELEASE build of the password filter uses only ETW event logging. The DEBUG build logs to ETW, stdout console and also DebugOut.
   (You can use Sysinternal's DbgView to view DebugOut messages.)
   WARNING: Debug builds print the passwords out into the logging, which is a security risk. Release builds do not print passwords.
+  This project also contains another program, PassFiltExTest.exe, which allows you to test the functionality of the password filter in 
+  a simple console program where you just type sample passwords.
 
 - The password filter utilizes Event Tracing for Windows (ETW). ETW is fast, lightweight, and there is no concern over managing 
   text-based log files which are slow and consume disk space.
