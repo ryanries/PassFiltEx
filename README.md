@@ -31,6 +31,9 @@ Installation:
 
 - (Or replace the text file with a list of your own. You are free to edit the blacklist file if you want.)
 
+- **IMPORTANT:** You MUST go find your own blacklist file. The blacklist file that comes with this project is not
+  sufficient to meet your needs on its own. There are many example blacklists of known-bad passwords out there, many hosted right here on GitHub!
+
 - Edit the registry: HKLM\SYSTEM\CurrentControlSet\Control\Lsa => Notification Packages
 
 - Add PassFiltEx to the end of the list. (Do not include the file extension.) So the whole list of notification packages will read
