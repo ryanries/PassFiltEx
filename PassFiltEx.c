@@ -143,7 +143,7 @@ Coding Guidelines:
 // Disable warnings about functions being inlined or not inlined.
 #pragma warning(disable: 4710)
 #pragma warning(disable: 4711)
-// Disable warning about /Qspectre comiler switch
+// Disable warning about /Qspectre compiler switch
 #pragma warning(disable: 5045)
 #define WIN32_NO_STATUS
 #include <Windows.h>
@@ -161,9 +161,14 @@ BADSTRING* gBlacklistHead;
 FILETIME gBlackListOldFileTime;
 FILETIME gBlackListNewFileTime;
 LARGE_INTEGER gPerformanceFrequency;
-DWORD gTokenPercentageOfPassword = 60;
+DWORD gTokenPercentageOfPassword = TOKEN_PERCENTAGE_OF_PASSWORD_DEFAULT;
 wchar_t gBlacklistFileName[256] = { L"PassFiltExBlacklist.txt" };
-DWORD gRequireCharClasses;
+DWORD gRequireEitherUpperOrLower;
+DWORD gMinLower;
+DWORD gMinUpper;
+DWORD gMinDigit;
+DWORD gMinSpecial;
+DWORD gMinUnicode;
 
 /*
 DllMain
@@ -299,11 +304,11 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	UNREFERENCED_PARAMETER(FullName);
 
 	BOOL PasswordIsOK = TRUE;
-	BOOL ContainsLower = FALSE;
-	BOOL ContainsUpper = FALSE;
-	BOOL ContainsDigit = FALSE;
-	BOOL ContainsSpecial = FALSE;
-	BOOL ContainsUnicode = FALSE;
+	DWORD NumLowers = 0;
+	DWORD NumUppers = 0;
+	DWORD NumDigits = 0;
+	DWORD NumSpecials = 0;
+	DWORD NumUnicodes = 0;
 	LARGE_INTEGER StartTime = { 0 };
 	LARGE_INTEGER EndTime = { 0 };
 	LARGE_INTEGER ElapsedMicroseconds = { 0 };
@@ -356,7 +361,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	{
 		for (unsigned int Counter = 0; Counter < wcslen(PasswordCopy); Counter++)
 		{
-			PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);
+			PasswordCopy[Counter] = towlower(PasswordCopy[Counter]);			
 		}	
 	}
 	else
@@ -372,10 +377,11 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 		if (wcslen(CurrentNode->String) == 0)
 		{
-			EventWriteStringW2(L"[%s:%s@%d] ERROR: This blacklist token is 0 characters long. It will be skipped. Check your blacklist file for blank lines!", __FILENAMEW__, __FUNCTIONW__, __LINE__);
+			EventWriteStringW2(L"[%s:%s@%d] ERROR: This blacklist token is 0 characters long. It will be skipped. Remove blank lines from your blacklist file!", __FILENAMEW__, __FUNCTIONW__, __LINE__);
 			continue;
 		}
 
+		// the password has already been towlower'd at this point; this is a case-insensitive search
 		if (wcsstr(PasswordCopy, CurrentNode->String))
 		{
 			if (((float)wcslen(CurrentNode->String) / (float)wcslen(PasswordCopy)) >= (float)gTokenPercentageOfPassword / 100)
@@ -389,89 +395,129 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 
 	for (unsigned int Character = 0; Character < wcslen(PasswordCopy); Character++)
 	{
-		if ((ContainsLower == FALSE) && (Password->Buffer[Character] >= 97) && (Password->Buffer[Character] <= 122))
-		{
-			EventWriteStringW2(L"[%s:%s@%d]\t - Found a lowercase letter.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
-			ContainsLower = TRUE;
+		if ((Password->Buffer[Character] >= 97) && (Password->Buffer[Character] <= 122))
+		{			
+			NumLowers++;			
 		}
 
-		if ((ContainsUpper == FALSE) && (Password->Buffer[Character] >= 65) && (Password->Buffer[Character] <= 90))
-		{
-			EventWriteStringW2(L"[%s:%s@%d]\t - Found an uppercase letter.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
-			ContainsUpper = TRUE;
+		if ((Password->Buffer[Character] >= 65) && (Password->Buffer[Character] <= 90))
+		{			
+			NumUppers++;
 		}
 
-		if ((ContainsDigit == FALSE) && (Password->Buffer[Character] >= 48) && (Password->Buffer[Character] <= 57))
-		{
-			EventWriteStringW2(L"[%s:%s@%d]\t - Found a digit character.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
-			ContainsDigit = TRUE;
+		if ((Password->Buffer[Character] >= 48) && (Password->Buffer[Character] <= 57))
+		{			
+			NumDigits++;
 		}
 
-		if ((ContainsSpecial == FALSE) && 
-			((Password->Buffer[Character] >= 32 && Password->Buffer[Character] <= 47) || 
+		if (((Password->Buffer[Character] >= 32 && Password->Buffer[Character] <= 47) || 
 			(Password->Buffer[Character] >= 58 && Password->Buffer[Character] <= 64) ||
 			(Password->Buffer[Character] >= 91 && Password->Buffer[Character] <= 96) ||
 			(Password->Buffer[Character] >= 123 && Password->Buffer[Character] <= 126) ||
 			(Password->Buffer[Character] >= 128 && Password->Buffer[Character] <= 255)))
-		{
-			EventWriteStringW2(L"[%s:%s@%d]\t - Found a special character.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
-
-			ContainsSpecial = TRUE;
+		{			
+			NumSpecials++;
 		}
 
-		if ((ContainsUnicode == FALSE) && (Password->Buffer[Character] > 255))
-		{
-			EventWriteStringW2(L"[%s:%s@%d]\t - Found a unicode character.", __FILENAMEW__, __FUNCTIONW__, __LINE__);
-			ContainsUnicode = TRUE;
+		if ((Password->Buffer[Character] > 255))
+		{			
+			NumUnicodes++;
 		}
 	}
 
-	if ((gRequireCharClasses & CHARACTER_CLASS_LOWERCASE) && (ContainsLower == FALSE))
+	EventWriteStringW2(
+		L"[%s:%s@%d]- Password composition: %d lowers, %d uppers, %d digits, %d specials, %d unicode.", 
+		__FILENAMEW__, 
+		__FUNCTIONW__, 
+		__LINE__,
+		NumLowers,
+		NumUppers,
+		NumDigits,
+		NumSpecials,
+		NumUnicodes);
+
+	if (gRequireEitherUpperOrLower)
 	{
-		if ((gRequireCharClasses & CHARACTER_CLASS_EITHER_UPPER_OR_LOWER) && (ContainsUpper == TRUE))
+		if (NumLowers + NumUppers == 0)
 		{
-			EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require either uppercase or lowercase letters. Password contains uppercase letters but no lowercase letters. Password is OK so far.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
-		}
-		else
-		{
+			EventWriteStringW2(
+				L"[%s:%s@%d] Rejecting password because the registry setting %s is set but the password contains no uppercase or lowercase letters.", 
+				__FILENAMEW__, 
+				__FUNCTIONW__, 
+				__LINE__,
+				FILTER_REG_REQUIRE_EITHER_LOWER_OR_UPPER);
 			PasswordIsOK = FALSE;
-			EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require lowercase letters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
 			goto End;
 		}
 	}
 
-	if ((gRequireCharClasses & CHARACTER_CLASS_UPPERCASE) && (ContainsUpper == FALSE))
-	{
-		if ((gRequireCharClasses & CHARACTER_CLASS_EITHER_UPPER_OR_LOWER) && (ContainsLower == TRUE))
-		{
-			EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require either uppercase or lowercase letters. Password contains lowercase letters but no uppercase letters. Password is OK so far.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
-		}
-		else
-		{
-			PasswordIsOK = FALSE;
-			EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require uppercase letters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
-			goto End;
-		}
-	}
-
-	if ((gRequireCharClasses & CHARACTER_CLASS_DIGIT) && ContainsDigit == FALSE)
+	if (NumLowers < gMinLower)
 	{
 		PasswordIsOK = FALSE;
-		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require digits, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+		EventWriteStringW2(
+			L"[%s:%s@%d] The %s registry key is set to require %d lowercase letters, but the password contained %d.", 
+			__FILENAMEW__, 
+			__FUNCTIONW__, 
+			__LINE__, 
+			FILTER_REG_MIN_LOWER,
+			gMinLower,
+			NumLowers);
 		goto End;
 	}
 
-	if ((gRequireCharClasses & CHARACTER_CLASS_SPECIAL) && ContainsSpecial == FALSE)
+	if (NumUppers < gMinUpper)
 	{
 		PasswordIsOK = FALSE;
-		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require special characters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+		EventWriteStringW2(
+			L"[%s:%s@%d] The %s registry key is set to require %d uppercase letters, but the password contained %d.",
+			__FILENAMEW__,
+			__FUNCTIONW__,
+			__LINE__,
+			FILTER_REG_MIN_UPPER,
+			gMinUpper,
+			NumUppers);
 		goto End;
 	}
 
-	if ((gRequireCharClasses & CHARACTER_CLASS_UNICODE) && ContainsUnicode == FALSE)
+	if (NumDigits < gMinDigit)
 	{
 		PasswordIsOK = FALSE;
-		EventWriteStringW2(L"[%s:%s@%d] The %s registry key is set to require unicode characters, but the password contained none.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES);
+		EventWriteStringW2(
+			L"[%s:%s@%d] The %s registry key is set to require %d digits, but the password contained %d.",
+			__FILENAMEW__,
+			__FUNCTIONW__,
+			__LINE__,
+			FILTER_REG_MIN_DIGIT,
+			gMinDigit,
+			NumDigits);
+		goto End;
+	}
+
+	if (NumSpecials < gMinSpecial)
+	{
+		PasswordIsOK = FALSE;
+		EventWriteStringW2(
+			L"[%s:%s@%d] The %s registry key is set to require %d special symbols, but the password contained %d.",
+			__FILENAMEW__,
+			__FUNCTIONW__,
+			__LINE__,
+			FILTER_REG_MIN_SPECIAL,
+			gMinSpecial,
+			NumSpecials);
+		goto End;
+	}
+	
+	if (NumUnicodes < gMinUnicode)
+	{
+		PasswordIsOK = FALSE;
+		EventWriteStringW2(
+			L"[%s:%s@%d] The %s registry key is set to require %d unicode symbols, but the password contained %d.",
+			__FILENAMEW__,
+			__FUNCTIONW__,
+			__LINE__,
+			FILTER_REG_MIN_UNICODE,
+			gMinUnicode,
+			NumUnicodes);
 		goto End;
 	}
 
@@ -483,7 +529,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	EventWriteStringW2(L"[%s:%s@%d] Finished in %llu microseconds. Will accept new password: %d", __FILENAMEW__, __FUNCTIONW__, __LINE__, ElapsedMicroseconds.QuadPart, PasswordIsOK);
 	
 	// NOTE: Despite what the MSDN documentation says, we should NOT be clearing the original password buffer that was passed in to us by Windows.
-	// We only need to clear any _copies_ of the password that we have made.
+	// We only need to clear any copies of the password that we have made.
 	//RtlSecureZeroMemory(&Password, Password->Length);
 
 	RtlSecureZeroMemory(PasswordCopy, sizeof(PasswordCopy));
@@ -664,6 +710,25 @@ DWORD UpdateConfigurationFromRegistry(void)
 	DWORD SubKeyDisposition = 0;
 	DWORD RegDataSize = 0;
 
+	typedef struct DWORD_REG_SETTING
+	{
+		wchar_t* Name;
+		void* Destination;
+		DWORD MinValue;
+		DWORD MaxValue;
+		DWORD DefaultValue;
+	} DWORD_REG_SETTING;
+
+	DWORD_REG_SETTING DwordRegValues[] = { 
+		{ .Name = FILTER_REG_REQUIRE_EITHER_LOWER_OR_UPPER, .Destination = &gRequireEitherUpperOrLower, .MinValue = 0, .MaxValue = 1, .DefaultValue = 0 },
+		{ .Name = FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD, .Destination = &gTokenPercentageOfPassword, .MinValue = 0, .MaxValue = 100, .DefaultValue = TOKEN_PERCENTAGE_OF_PASSWORD_DEFAULT },
+		{ .Name = FILTER_REG_MIN_LOWER, .Destination = &gMinLower, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
+		{ .Name = FILTER_REG_MIN_UPPER, .Destination = &gMinUpper, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
+		{ .Name = FILTER_REG_MIN_DIGIT, .Destination = &gMinDigit, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
+		{ .Name = FILTER_REG_MIN_SPECIAL, .Destination = &gMinSpecial, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
+		{ .Name = FILTER_REG_MIN_UNICODE, .Destination = &gMinUnicode, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 }
+	};
+
 	if ((Status = RegCreateKeyExW(HKEY_LOCAL_MACHINE, FILTER_REG_SUBKEY, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &SubKeyHandle, &SubKeyDisposition)) != ERROR_SUCCESS)
 	{
 		EventWriteStringW2(L"[%s:%s@%d] Failed to open or create registry key HKLM\\%s! Error 0x%08lx", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_SUBKEY, Status);
@@ -679,8 +744,56 @@ DWORD UpdateConfigurationFromRegistry(void)
 		EventWriteStringW2(L"[%s:%s@%d] Opened existing registry subkey HKLM\\%s.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_SUBKEY);
 	}
 
-	RegDataSize = (DWORD)sizeof(gBlacklistFileName);
+	for (int setting = 0; setting < __crt_countof(DwordRegValues); setting++)
+	{
+		RegDataSize = (DWORD)sizeof(DWORD);
+		if ((Status = RegGetValueW(SubKeyHandle, NULL, DwordRegValues[setting].Name, RRF_RT_DWORD, NULL, DwordRegValues[setting].Destination, &RegDataSize)) != ERROR_SUCCESS)
+		{
+			if (Status == ERROR_FILE_NOT_FOUND)
+			{
+				EventWriteStringW2(L"[%s:%s@%d] Registry value %s was not found. Using previous or default value %lu", __FILENAMEW__, __FUNCTIONW__, __LINE__, DwordRegValues[setting].Name, *(DWORD*)DwordRegValues[setting].Destination);
+				Status = ERROR_SUCCESS;
+			}
+			else
+			{
+				EventWriteStringW2(L"[%s:%s@%d] ERROR: Failed to read registry value %s! Error 0x%08lx", __FILENAMEW__, __FUNCTIONW__, __LINE__, DwordRegValues[setting].Name, Status);
+			}
+		}
+		else
+		{
+			EventWriteStringW2(L"[%s:%s@%d] Successfully read registry value %s. Data: %lu", __FILENAMEW__, __FUNCTIONW__, __LINE__, DwordRegValues[setting].Name, *(DWORD*)DwordRegValues[setting].Destination);
 
+			if (*(DWORD*)DwordRegValues[setting].Destination > DwordRegValues[setting].MaxValue)
+			{
+
+				EventWriteStringW2(
+					L"[%s:%s@%d] WARNING: %s was greater than the max allowed value %d. Defaulting to %d.", 
+					__FILENAMEW__, 
+					__FUNCTIONW__, 
+					__LINE__, 
+					DwordRegValues[setting].Name,
+					DwordRegValues[setting].MaxValue, 
+					DwordRegValues[setting].DefaultValue);
+
+				*(DWORD*)DwordRegValues[setting].Destination = DwordRegValues[setting].DefaultValue;
+			}
+			else if (*(DWORD*)DwordRegValues[setting].Destination < DwordRegValues[setting].MinValue)
+			{
+				EventWriteStringW2(
+					L"[%s:%s@%d] WARNING: %s was less than the minimum allowed value %d. Defaulting to %d.",
+					__FILENAMEW__,
+					__FUNCTIONW__,
+					__LINE__,
+					DwordRegValues[setting].Name,
+					DwordRegValues[setting].MinValue,
+					DwordRegValues[setting].DefaultValue);
+
+				*(DWORD*)DwordRegValues[setting].Destination = DwordRegValues[setting].DefaultValue;
+			}
+		}
+	}
+
+	RegDataSize = (DWORD)sizeof(gBlacklistFileName);
 	if ((Status = RegGetValueW(SubKeyHandle, NULL, FILTER_REG_BLACKLIST_FILENAME, RRF_RT_REG_SZ, NULL, &gBlacklistFileName, &RegDataSize)) != ERROR_SUCCESS)
 	{
 		if (Status == ERROR_FILE_NOT_FOUND)
@@ -702,50 +815,6 @@ DWORD UpdateConfigurationFromRegistry(void)
 			EventWriteStringW2(L"[%s:%s@%d] WARNING: %s was blank!", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_BLACKLIST_FILENAME);
 		}
 	}	
-
-	RegDataSize = (DWORD)sizeof(DWORD);	
-
-	if ((Status = RegGetValueW(SubKeyHandle, NULL, FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD, RRF_RT_DWORD, NULL, &gTokenPercentageOfPassword, &RegDataSize)) != ERROR_SUCCESS)
-	{
-		if (Status == ERROR_FILE_NOT_FOUND)
-		{
-			EventWriteStringW2(L"[%s:%s@%d] Registry value %s was not found. Using previous value %lu", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD, gTokenPercentageOfPassword);
-			Status = ERROR_SUCCESS;
-		}
-		else
-		{
-			EventWriteStringW2(L"[%s:%s@%d] Failed to read registry value %s! Error 0x%08lx", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD, Status);			
-		}
-	}
-	else
-	{
-		EventWriteStringW2(L"[%s:%s@%d] Successfully read registry value %s. Data: %lu", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD, gTokenPercentageOfPassword);
-
-		if (gTokenPercentageOfPassword > 100)
-		{
-			EventWriteStringW2(L"[%s:%s@%d] WARNING: %s was greater than 100%%, which does not make sense. Defaulting to 60%%.", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD);
-			gTokenPercentageOfPassword = 60;
-		}
-	}
-
-	RegDataSize = (DWORD)sizeof(DWORD);
-
-	if ((Status = RegGetValueW(SubKeyHandle, NULL, FILTER_REG_REQUIRE_CHAR_CLASSES, RRF_RT_DWORD, NULL, &gRequireCharClasses, &RegDataSize)) != ERROR_SUCCESS)
-	{
-		if (Status == ERROR_FILE_NOT_FOUND)
-		{
-			EventWriteStringW2(L"[%s:%s@%d] Registry value %s was not found. Using previous value %lu", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES, gRequireCharClasses);
-			Status = ERROR_SUCCESS;
-		}
-		else
-		{
-			EventWriteStringW2(L"[%s:%s@%d] Failed to read registry value %s! Error 0x%08lx", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES, Status);
-		}
-	}
-	else
-	{
-		EventWriteStringW2(L"[%s:%s@%d] Successfully read registry value %s. Data: %lu", __FILENAMEW__, __FUNCTIONW__, __LINE__, FILTER_REG_REQUIRE_CHAR_CLASSES, gRequireCharClasses);
-	}
 
 Exit:
 
