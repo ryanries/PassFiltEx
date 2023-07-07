@@ -124,6 +124,9 @@ Operation:
   haveibeenpwned is about matching password hashes to identify passwords that have _already_ been owned. This password filter aims
   to solve a slightly different problem by preventing not just passwords that have already been owned, but also preventing the use
   of passwords that could easily be owned because they contain common patterns, even if those password hashes are not known yet.
+  
+ - NOTE: This binary is not signed with a code signing certificate, which means the DLL will not load if LSA Protection, aka RunAsPPL is enabled.
+   If you have a code signing certificate and you wish to sign the binary yourself then go for it. 
 
 
 Debugging:
@@ -132,7 +135,7 @@ Debugging:
   (You can use Sysinternal's DbgView to view DebugOut messages.)
   WARNING: Debug builds print the passwords out into the logging, which is a security risk. Release builds do not print passwords.
   This project also contains another program, PassFiltExTest.exe, which allows you to test the functionality of the password filter in 
-  a simple console program where you just type sample passwords.
+  a simple console program where you just type sample passwords, but it only works with the Debug build.
 
 - The password filter utilizes Event Tracing for Windows (ETW). ETW is fast, lightweight, and there is no concern over managing 
   text-based log files which are slow and consume disk space.
