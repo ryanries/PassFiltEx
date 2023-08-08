@@ -126,7 +126,7 @@ Operation:
   of passwords that could easily be owned because they contain common patterns, even if those password hashes are not known yet.
   
  - NOTE: This binary is not signed with a code signing certificate, which means the DLL will not load if LSA Protection, aka RunAsPPL is enabled.
-   If you have a code signing certificate and you wish to sign the binary yourself then go for it. 
+   Only by getting the module signed by Microsoft as outlined [here](https://learn.microsoft.com/en-us/windows-hardware/drivers/dashboard/file-signing-manage) will the password filter load into lsass if LSA Protection is enabled.
 
 
 Debugging:
