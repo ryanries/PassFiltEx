@@ -143,7 +143,7 @@ By default, only error messages are logged. If the Debug registry setting is tur
 You can use the command "tasklist /m PassFiltEx.dll" to verify whether the module is indeed loaded into the lsass process. Certain
 security features such as RunAsPPL, antivirus, etc., might try to prevent lsass from loading the module.
 
-![tasklist](tasklistmodules.png "tasklist /m PassFiltEx.dll")	
+![tasklist](tasklistmodule.png "tasklist /m PassFiltEx.dll")	
 
 
 Coding Guidelines:
