@@ -431,17 +431,23 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	
 	for (size_t Character = 0; Character < PasswordCopyLen; Character++)
 	{
-		if ((Password->Buffer[Character] >= 97) && (Password->Buffer[Character] <= 122))
+		// ASCII_LOWERCASE_BEGIN	97
+		// ASCII_LOWERCASE_END		122
+		// ASCII_UPPERCASE_BEGIN	65
+		// ASCII_UPPERCASE_END		90
+		// ASCII_DIGITS_BEGIN		48
+		// ASCII_DIGITS_END			57
+		if ((Password->Buffer[Character] >= ASCII_LOWERCASE_BEGIN) && (Password->Buffer[Character] <= ASCII_LOWERCASE_END))
 		{			
-			NumLowers++;			
+			NumLowers++;
 		}
 
-		if ((Password->Buffer[Character] >= 65) && (Password->Buffer[Character] <= 90))
+		if ((Password->Buffer[Character] >= ASCII_UPPERCASE_BEGIN) && (Password->Buffer[Character] <= ASCII_UPPERCASE_END))
 		{			
 			NumUppers++;
 		}
 
-		if ((Password->Buffer[Character] >= 48) && (Password->Buffer[Character] <= 57))
+		if ((Password->Buffer[Character] >= ASCII_DIGITS_BEGIN) && (Password->Buffer[Character] <= ASCII_DIGITS_END))
 		{			
 			NumDigits++;
 		}
@@ -567,22 +573,28 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		goto End;
 	}
 
+	// Only check alphanumeric characters for sequences, so block abc and 123 but not !@#
 	if (gBlockSequential)
 	{
 		for (size_t Character = 0; Character < PasswordCopyLen - 2; Character++)
 		{
-			if ((Password->Buffer[Character + 1] == Password->Buffer[Character] + 1) &&
-				(Password->Buffer[Character + 2] == Password->Buffer[Character] + 2))
+			if (((Password->Buffer[Character] >= ASCII_LOWERCASE_BEGIN) && (Password->Buffer[Character] <= ASCII_LOWERCASE_END)) ||
+				((Password->Buffer[Character] >= ASCII_UPPERCASE_BEGIN) && (Password->Buffer[Character] <= ASCII_UPPERCASE_END)) ||
+				((Password->Buffer[Character] >= ASCII_DIGITS_BEGIN) && (Password->Buffer[Character] <= ASCII_DIGITS_END)))
 			{
-				LogMessageW(
-					LOG_DEBUG,
-					L"[%s:%s@%d] Rejecting password because a sequential set was detected (e.g. 'abc' or '123' etc.) and %s is set to block it.",
-					__FILENAMEW__,
-					__FUNCTIONW__,
-					__LINE__,
-					FILTER_REG_BLOCK_SEQUENTIAL);
-				PasswordIsOK = FALSE;
-				goto End;
+				if ((Password->Buffer[Character + 1] == Password->Buffer[Character] + 1) &&
+					(Password->Buffer[Character + 2] == Password->Buffer[Character] + 2))
+				{
+					LogMessageW(
+						LOG_DEBUG,
+						L"[%s:%s@%d] Rejecting password because a sequential set was detected (e.g. 'abc' or '123' etc.) and %s is set to block it.",
+						__FILENAMEW__,
+						__FUNCTIONW__,
+						__LINE__,
+						FILTER_REG_BLOCK_SEQUENTIAL);
+					PasswordIsOK = FALSE;
+					goto End;
+				}
 			}
 		}
 	}
