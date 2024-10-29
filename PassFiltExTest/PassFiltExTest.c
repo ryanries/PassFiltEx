@@ -44,6 +44,7 @@ int main(void)
 	UNICODE_STRING FullName = { .Buffer = L"Test User", .Length = 18, .MaximumLength = 18 };
 
 	wprintf_s(L"PassFiltExTest - Press Ctrl+C to quit.\n");
+	wprintf_s(L"*** This program is for testing purposes only! ***\n");
 
 	if (IsElevated() == FALSE)
 	{
@@ -70,11 +71,10 @@ int main(void)
 	}
 
 	InitializeChangeNotify();
-
+	
 	while (TRUE)
 	{
-		UNICODE_STRING NewPassword = { .Buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 512), .Length = 0, .MaximumLength = 512 };		
-
+		UNICODE_STRING NewPassword = { .Buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 512), .Length = 0, .MaximumLength = 512 };
 		wprintf_s(L"Password:");		
 		fgetws(NewPassword.Buffer, 256, stdin);
 		NewPassword.Length = (USHORT)wcslen(NewPassword.Buffer) * sizeof(wchar_t);
@@ -86,6 +86,11 @@ int main(void)
 		else
 		{
 			wprintf_s(L"FAIL\n");
+		}
+
+		if (NewPassword.Buffer)
+		{
+			HeapFree(GetProcessHeap(), 0, NewPassword.Buffer);
 		}
 	}
 
