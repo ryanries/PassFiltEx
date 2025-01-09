@@ -78,6 +78,8 @@ Operation:
 	
 	**BlockSequentialChars**, REG_DWORD, Default: 0
 	
+	**BlockRepeatingChars**, REG_DWORD, Default: 0
+	
 	**Debug**, REG_DWORD, Default: 0
 	
 	
@@ -103,6 +105,8 @@ Operation:
   given character class. For example setting MinDigit to 2 will require passwords to contain at least 2 digits.
   
   **BlockSequentialChars** 0 means it is off, 1 means it is on. This will block sequences of characters such as 'abc' or '123'.
+  
+  **BlockRepeatingChars** 0 means it is off, 1 means it is on. This will block repeating sequences of 3 or more e.g. 'aaa' or '111', etc.
 
   **Debug** 0 means it's off, 1 means it is on. If Debug is on, additional log messages will be written to the log file.
   If Debug is off, then only serious errors will be logged.

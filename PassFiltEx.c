@@ -41,6 +41,7 @@ Operation:
 	MinSpecial					REG_DWORD	Default: 0
 	MinUnicode					REG_DWORD	Default: 0
 	BlockSequentialChars		REG_DWORD	Default: 0
+	BlockRepeatingChars			REG_DWORD	Default: 0
 	Debug						REG_DWORD	Default: 0
 
   BlacklistFileName 
@@ -66,6 +67,9 @@ Operation:
 
   BlockSequentialChars
   0 means it is off, 1 means it is on. This will block sequences of characters such as 'abc' or '123'.
+
+  BlockRepeatingChars
+  0 means it is off, 1 means it is on. This will block repeating sequences of 3 or more e.g. 'aaa' or '111', etc.
 
   Debug
   0 means it's off, 1 means it is on. If Debug is on, additional log messages will be written to the log file.
@@ -146,6 +150,7 @@ DWORD gMinDigit;
 DWORD gMinSpecial;
 DWORD gMinUnicode;
 DWORD gBlockSequential;
+DWORD gBlockRepeating;
 DWORD gDebug;
 
 /*
@@ -599,6 +604,26 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		}
 	}
 
+	if (gBlockRepeating)
+	{
+		for (size_t Character = 0; Character < PasswordCopyLen - 2; Character++)
+		{
+			if ((Password->Buffer[Character + 1] == Password->Buffer[Character]) &&
+				(Password->Buffer[Character + 2] == Password->Buffer[Character]))
+			{
+				LogMessageW(
+					LOG_DEBUG,
+					L"[%s:%s@%d] Rejecting password because of repeating chars (e.g. 'aaa' or '1111' etc.) and %s is set to block it.",
+					__FILENAMEW__,
+					__FUNCTIONW__,
+					__LINE__,
+					FILTER_REG_BLOCK_REPEATING);
+					PasswordIsOK = FALSE;
+					goto End;
+			}
+		}
+	}
+
 	
 End:
 	QueryPerformanceCounter(&EndTime);
@@ -880,7 +905,8 @@ DWORD UpdateConfigurationFromRegistry(void)
 		{ .Name = FILTER_REG_MIN_DIGIT, .Destination = &gMinDigit, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
 		{ .Name = FILTER_REG_MIN_SPECIAL, .Destination = &gMinSpecial, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
 		{ .Name = FILTER_REG_MIN_UNICODE, .Destination = &gMinUnicode, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
-		{ .Name = FILTER_REG_BLOCK_SEQUENTIAL, .Destination = &gBlockSequential, .MinValue = 0, .MaxValue = 1, .DefaultValue = 0 }
+		{ .Name = FILTER_REG_BLOCK_SEQUENTIAL, .Destination = &gBlockSequential, .MinValue = 0, .MaxValue = 1, .DefaultValue = 0 },
+		{ .Name = FILTER_REG_BLOCK_REPEATING, .Destination = &gBlockRepeating, .MinValue = 0, .MaxValue = 1, .DefaultValue = 0 }
 	};
 
 	if ((Status = RegCreateKeyExW(HKEY_LOCAL_MACHINE, FILTER_REG_SUBKEY, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &SubKeyHandle, &SubKeyDisposition)) != ERROR_SUCCESS)
