@@ -16,7 +16,7 @@
 
 // The name of the log file.
 #define FILTER_LOG_FILE_NAME	L"PassFiltEx.log"
-#define FILTER_VERSION_STRING	L"1.4.17"
+#define FILTER_VERSION_STRING	L"1.5.55"
 
 // These are the names of the registry values.
 #define FILTER_REG_DEBUG	L"Debug"

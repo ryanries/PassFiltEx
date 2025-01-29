@@ -1,7 +1,7 @@
 /*
 PassFiltEx.c
 PassFiltEx by Joseph Ryan Ries
-Author: Joseph Ryan Ries 2019-2024 <ryanries09@gmail.com>,<ryan.ries@microsoft.com>
+Author: Joseph Ryan Ries 2019-2025 <ryanries09@gmail.com>,<ryan.ries@microsoft.com>
 A password filter for Active Directory that uses a blacklist of bad passwords/character sequences 
 and also has some other options for a more robust password policy.
 
@@ -12,111 +12,7 @@ This is a personal project and is NOT endorsed or supported by Microsoft in any 
 Use at your own risk. This code is not guaranteed to be free of errors, and comes
 with no guarantees, liability, warranties or support.
 ********************************************************************************************
-
-Installation:
-- Copy PassFiltEx.dll into the C:\Windows\System32 (i.e. %SystemRoot%\System32) directory on your domain controller.
-- Copy the PassFiltExBlacklist.txt file into the C:\Windows\System32 (or %SystemRoot%\System32) directory.
-- Replace the text file with a list of your own. This project does not include a complete production ready blacklist file - you must supply your own.
-- Edit the registry: HKLM\SYSTEM\CurrentControlSet\Control\Lsa => Notification Packages
-- Add PassFiltEx to the end of the list. (Do not include the file extension.) The whole list of notification packages will read
-  "rassfm scecli PassFiltEx" with newlines between each one.
-- Reboot the domain controller.
-- Repeat the above procedure on all domain controllers.
-
-Operation:
-- Any time a user attempts to change his or her password, or any time an administrator attempts to set a user's password, the
-  callback in this password filter will be invoked.
-- It is possible to have multiple password filters installed simultaneously.
-  All password filters must say yes in order for the password change to be accepted. If any password filter says no, the password change
-  is rejected. Therefore, PassFiltEx does not need to check for password length, password complexity, password
-  age, etc., because those things are already checked for using the in-box Windows password policy.
-- Optionally, you can set the following registry values:
-  Subkey: HKLM\SOFTWARE\PassFiltEx
-	BlacklistFileName			REG_SZ		Default: PassFiltExBlacklist.txt
-	TokenPercentageOfPassword	REG_DWORD	Default: 60
-	RequireEitherLowerOrUpper	REG_DWORD	Default: 0
-	MinLower					REG_DWORD	Default: 0
-	MinUpper					REG_DWORD	Default: 0
-	MinDigit					REG_DWORD	Default: 0
-	MinSpecial					REG_DWORD	Default: 0
-	MinUnicode					REG_DWORD	Default: 0
-	BlockSequentialChars		REG_DWORD	Default: 0
-	BlockRepeatingChars			REG_DWORD	Default: 0
-	Debug						REG_DWORD	Default: 0
-
-  BlacklistFileName 
-  Allows you to specify a custom path to a blacklist file. By default if there is nothing specified, it is
-  PassFiltExBlacklist.txt. The current working directory of the password filter is %SystemRoot%\System32, but you can specify
-  a fully-qualified path name too. Even a UNC path (such as something in SYSVOL) if you want. WARNING: You are responsible
-  for properly securing the blacklist file so that it may only be edited and viewed by authorized users.
-  You can store the blacklist file in SYSVOL if you want, but you must ask yourself whether you want all Authenticated Users
-  to have the ability to read your blacklist file or not.
-
-  TokenPercentageOfPassword
-  Allows you specify how much of the entire password must consist of the blacklisted token
-  before the password change is rejected. The default is 60% if nothing is specified. The registry value is REG_DWORD, with
-  the value 60 decimal representing 60%, which is converted to floating point 0 to 1.0 at runtime. For example, if the character sequence
-  starwars appeared in the blacklist file, and TokenPercentageOfPassword was set to 60, then the password Starwars1! would
-  be rejected, because more than 60% of the proposed password is made up of the blacklisted term starwars. However, the
-  password starwars1!DarthVader88 would be accepted, because even though it contains the blacklisted sequence starwars, more
-  than 60% of the proposed password is NOT starwars.
-
-  MinLower/MinUpper/etc. 
-  Allows you to specify if you require the user's password to contain multiple instances of any
-  given character class. For example setting MinDigit to 2 will require passwords to contain at least 2 digits.
-
-  BlockSequentialChars
-  0 means it is off, 1 means it is on. This will block sequences of characters such as 'abc' or '123'.
-
-  BlockRepeatingChars
-  0 means it is off, 1 means it is on. This will block repeating sequences of 3 or more e.g. 'aaa' or '111', etc.
-
-  Debug
-  0 means it's off, 1 means it is on. If Debug is on, additional log messages will be written to the log file.
-  If Debug is off, then only serious errors will be logged.
-
-
-
-- Comparisons are NOT case sensitive. (Though the final password will of course still be case sensitive.)
-
-- The blacklist is reloaded every 60 seconds, so feel free to edit the blacklist file at will. 
-  The password filter will read the new updates within a minute.
-
-- Registry settings are re-read every 60 seconds as well so you can change the registry settings without having to restart the whole machine.
-
-- All registry settings are optional. They do not need to exist. If a registry setting does not exist, the default is used.
-
-- Unicode support is not thoroughly tested. Everything is assumed ASCII/ANSI. You can still use Unicode characters in your passwords, but Unicode
-  characters will not match against anything in the blacklist.
-
-- Either Windows or Unix line endings (either \r\n or \n) in the blacklist file should both work.
-
-- For example, if the blacklist contains the token "abc", then the passwords abc and abc123 and AbC123 and 123Abc will all be
-  rejected. But Abc123! will be accepted, because the token abc does not make up 60% or more of the full password. Unless
-  BlockSequentialChars is enabled, in which case the password still be rejected because it contains 3 sequential characters, a b and c in a row.
-
-- FAQ: Can you/will you integrate with Troy Hunt's "haveibeenpwned" API? Answer: Probably not. First, I'm pretty sure that has
-  already been done by someone else. And you are free to use multiple password filters simultaneously if you want. Second,
-  haveibeenpwned is about matching password hashes to identify passwords that have _already_ been owned. This password filter aims
-  to solve a different problem by preventing not just passwords that have already been owned, but also preventing the use
-  of passwords that could easily be owned because they contain common patterns, even if those password hashes are not known yet.
-
-
-The debug log is Windows\system32\PassFiltEx.log. A new log file is automatically started once the current log file reaches 1MB.
-
-You can use the command "tasklist /m PassFiltEx.dll" to verify whether the module is indeed loaded into the lsass process. Certain
-security features such as RunAsPPL, antivirus, etc., might try to prevent lsass from loading the module.
-
-
-Coding Guidelines:
-
-- Want to contribute? Cool! Just remember: This code ABSOLUTELY MUST NOT CRASH. 
-  If it crashes, it will crash the lsass process of the domain controller, which will in turn
-  reboot the domain controller. It can even render a domain controller unbootable by putting the system into a boot loop.
-  You'd need to boot the machine from alternate media and edit the registry offline to remove the password filter from the registry. 
-  Therefore, this code must be immaculate and as reliable as you can possibly imagine. Avoid being "clever" and just write "boring", stable code.
-  If you don't feel very comfortable with that, just leave me a note on what you want to see added and I'll see about it.
-  That means /Wall, /WX and static analyzer at a minimum.
+01/29/2025: I have removed the rest of the readme text. See the external README.md file for more info.
 */
 
 #define WIN32_LEAN_AND_MEAN
@@ -415,21 +311,43 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 			continue;
 		}
 
+		// if the blacklisted string starts with ! that means this string is totally forbidden regardless of how big the overall password is.
+		// else we will honor the gTokenPercentageOfPassword rule.
 		// the password copy has already been towlower'd at this point; this is a case-insensitive search
-		if (wcsstr(PasswordCopy, CurrentNode->String))
+		if (CurrentNode->String[0] == '!')
 		{
-			if (((float)wcslen(CurrentNode->String) / (float)wcslen(PasswordCopy)) >= (float)gTokenPercentageOfPassword / 100)
+			wchar_t superblacklistedstring[MAX_BLACKLIST_STRING_SIZE] = { 0 };
+			wcscpy_s(superblacklistedstring, MAX_BLACKLIST_STRING_SIZE, CurrentNode->String + 1);
+			if (wcsstr(PasswordCopy, superblacklistedstring))
 			{
 				LogMessageW(
 					LOG_DEBUG,
-					L"[%s:%s@%d] Rejecting password because it contains the blacklisted string \"%s\" and it is at least %lu%% of the full password!", 
-					__FILENAMEW__, 
-					__FUNCTIONW__, 
-					__LINE__, 
-					CurrentNode->String, 
-					gTokenPercentageOfPassword);
+					L"[%s:%s@%d] Rejecting password because it contains the SUPER blacklisted string \"%s\"!",
+					__FILENAMEW__,
+					__FUNCTIONW__,
+					__LINE__,
+					superblacklistedstring);
 				PasswordIsOK = FALSE;
 				goto End;
+			}
+		}
+		else
+		{
+			if (wcsstr(PasswordCopy, CurrentNode->String))
+			{
+				if (((float)wcslen(CurrentNode->String) / (float)wcslen(PasswordCopy)) >= (float)gTokenPercentageOfPassword / 100)
+				{
+					LogMessageW(
+						LOG_DEBUG,
+						L"[%s:%s@%d] Rejecting password because it contains the blacklisted string \"%s\" and it is at least %lu%% of the full password!",
+						__FILENAMEW__,
+						__FUNCTIONW__,
+						__LINE__,
+						CurrentNode->String,
+						gTokenPercentageOfPassword);
+					PasswordIsOK = FALSE;
+					goto End;
+				}
 			}
 		}
 	}

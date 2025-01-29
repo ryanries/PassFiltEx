@@ -4,7 +4,7 @@ PassFiltEx.c
 
 # PassFiltEx by Joseph Ryan Ries
 
-Author: Joseph Ryan Ries 2019-2024 <ryanries09@gmail.com>,<ryan.ries@microsoft.com>
+Author: Joseph Ryan Ries 2019-2025 <ryanries09@gmail.com>,<ryan.ries@microsoft.com>
 
 A password filter for Active Directory that uses a blacklist of bad passwords/character sequences.
 
@@ -100,6 +100,16 @@ Operation:
   be rejected, because more than 60% of the proposed password is made up of the blacklisted term starwars. However, the 
   password starwars1!DarthVader88 would be accepted, because even though it contains the blacklisted sequence starwars, more
   than 60% of the proposed password is NOT starwars.
+  
+  As of version 1.5.55, if a line in the blacklist file starts with the ! character, then TokenPercentageOfPassword will be ignored
+  for that blacklisted string, and if the password contains that blacklisted string at all, it will be rejected regardless of how
+  long the overall password is.
+  
+  In the following example screenshot, the character sequence "set" is considered to be SUPER-blacklisted, meaning that passwords
+  may not contain the character sequence "set" in them at all, whatsoever, regardless of how long the rest of the password is.
+  
+  ![superblacklisted](superblacklisted1.png "set is SUPER blacklisted")	
+  
   
   **MinLower/MinUpper/etc.** allows you to specify if you require the user's password to contain multiple instances of any
   given character class. For example setting MinDigit to 2 will require passwords to contain at least 2 digits.
