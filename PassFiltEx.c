@@ -2,7 +2,7 @@
 PassFiltEx.c
 PassFiltEx by Joseph Ryan Ries
 Author: Joseph Ryan Ries 2019-2025 <ryanries09@gmail.com>,<ryan.ries@microsoft.com>
-A password filter for Active Directory that uses a blacklist of bad passwords/character sequences 
+A password filter for Active Directory that uses a blocklist of bad passwords/character sequences 
 and also has some other options for a more robust password policy.
 
 Technical Reference: https://msdn.microsoft.com/en-us/library/windows/desktop/ms721882(v=vs.85).aspx
@@ -15,11 +15,10 @@ with no guarantees, liability, warranties or support.
 01/29/2025: I have removed the rest of the readme text. See the external README.md file for more info.
 */
 
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+#pragma clang diagnostic ignored "-Wdeclaration-after-statement"
 #define WIN32_LEAN_AND_MEAN
-#pragma warning(disable: 4710)	// Disable warnings about functions being inlined or not inlined.
-#pragma warning(disable: 4711)
-#pragma warning(disable: 5045)	// Disable warning about /Qspectre compiler switch
-#pragma warning(disable: 4820)	// Disable warning about padding bytes being added to structs
+#define UNICODE
 #define WIN32_NO_STATUS
 #include <Windows.h>
 #undef WIN32_NO_STATUS
@@ -27,27 +26,31 @@ with no guarantees, liability, warranties or support.
 #include <NTSecAPI.h>
 #include <ntstatus.h>
 #include <stdio.h>
+#include <lm.h>
+#pragma comment(lib, "Netapi32.lib")
+#pragma comment(lib, "Advapi32.lib")
 #include "PassFiltEx.h"
 
-HANDLE gLogFileHandle = INVALID_HANDLE_VALUE;
-HANDLE gBlacklistThread;
-CRITICAL_SECTION gBlacklistCritSec;
-CRITICAL_SECTION gLogCritSec;
-BADSTRING* gBlacklistHead;
-FILETIME gBlackListOldFileTime;
-FILETIME gBlackListNewFileTime;
-LARGE_INTEGER gPerformanceFrequency;
-DWORD gTokenPercentageOfPassword = TOKEN_PERCENTAGE_OF_PASSWORD_DEFAULT;
-wchar_t gBlacklistFileName[256] = { L"PassFiltExBlacklist.txt" };
-DWORD gRequireEitherUpperOrLower;
-DWORD gMinLower;
-DWORD gMinUpper;
-DWORD gMinDigit;
-DWORD gMinSpecial;
-DWORD gMinUnicode;
-DWORD gBlockSequential;
-DWORD gBlockRepeating;
-DWORD gDebug;
+static HANDLE gLogFileHandle = INVALID_HANDLE_VALUE;
+static HANDLE gBlocklistThread;
+static CRITICAL_SECTION gBlocklistCritSec;
+static CRITICAL_SECTION gLogCritSec;
+static BADSTRING* gBlocklistHead;
+static FILETIME gBlockListOldFileTime;
+static FILETIME gBlockListNewFileTime;
+static LARGE_INTEGER gPerformanceFrequency;
+static DWORD gTokenPercentageOfPassword;
+static wchar_t gBlocklistFileName[256] = { L"PassFiltExBlocklist.txt" };
+static wchar_t gApplyToTheseGroups[1024];
+static DWORD gRequireEitherUpperOrLower;
+static DWORD gMinLower;
+static DWORD gMinUpper;
+static DWORD gMinDigit;
+static DWORD gMinSpecial;
+static DWORD gMinUnicode;
+static DWORD gBlockSequential;
+static DWORD gBlockRepeating;
+static DWORD gDebug;
 
 /*
 DllMain
@@ -89,7 +92,7 @@ __declspec(dllexport) BOOL CALLBACK InitializeChangeNotify(void)
 	}
 
 	// DO NOT ATTEMPT TO LOG ANYTHING UNTIL THESE CRITICAL SECTIONS ARE INITIALIZED
-	(void)InitializeCriticalSectionAndSpinCount(&gBlacklistCritSec, 100);
+	(void)InitializeCriticalSectionAndSpinCount(&gBlocklistCritSec, 100);
 	(void)InitializeCriticalSectionAndSpinCount(&gLogCritSec, 100);
 	QueryPerformanceFrequency(&gPerformanceFrequency);
 
@@ -102,11 +105,11 @@ __declspec(dllexport) BOOL CALLBACK InitializeChangeNotify(void)
 		L"PassFiltEx",
 		FILTER_VERSION_STRING);
 
-	if ((gBlacklistThread = CreateThread(NULL, 0, BlacklistThreadProc, NULL, 0, NULL)) == NULL)
+	if ((gBlocklistThread = CreateThread(NULL, 0, BlocklistThreadProc, NULL, 0, NULL)) == NULL)
 	{
 		LogMessageW(
 			LOG_ERROR,
-			L"[%s:%s@%d] Failed to create blacklist update thread! Error 0x%08lx",
+			L"[%s:%s@%d] Failed to create blocklist update thread! Error 0x%08lx",
 			__FILENAMEW__,
 			__FUNCTIONW__,
 			__LINE__, 
@@ -117,7 +120,7 @@ __declspec(dllexport) BOOL CALLBACK InitializeChangeNotify(void)
 
 	LogMessageW(
 		LOG_DEBUG,
-		L"[%s:%s@%d] Blacklist update thread created.", 
+		L"[%s:%s@%d] Blocklist update thread created.", 
 		__FILENAMEW__, 
 		__FUNCTIONW__, 
 		__LINE__);
@@ -156,7 +159,7 @@ __declspec(dllexport) NTSTATUS CALLBACK PasswordChangeNotify(_In_ PUNICODE_STRIN
 	UNREFERENCED_PARAMETER(NewPassword);
 
 	// UNICODE_STRINGs might not be null-terminated.
-	// Let's make a null-terminated copy of it.
+  // Let's make a null-terminated copy of it.
 	// MSDN says that the upper limit of sAMAccountName is 256
 	// but SAM is AFAIK restricted to <= 20 characters. Let's pick a safe buffer size.
 
@@ -208,6 +211,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	UNREFERENCED_PARAMETER(FullName);
 
 	BOOL PasswordIsOK = TRUE;
+	BOOL SkipThisUser = TRUE;
 	size_t PasswordCopyLen = 0;
 	DWORD NumLowers = 0;
 	DWORD NumUppers = 0;
@@ -218,9 +222,9 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	LARGE_INTEGER EndTime = { 0 };
 	LARGE_INTEGER ElapsedMicroseconds = { 0 };
 
-	EnterCriticalSection(&gBlacklistCritSec);
+	EnterCriticalSection(&gBlocklistCritSec);
 	QueryPerformanceCounter(&StartTime);
-	BADSTRING* CurrentNode = gBlacklistHead;
+	BADSTRING* CurrentNode = gBlocklistHead;
 
 	// UNICODE_STRINGs are usually not null-terminated.
 	// Let's make a null-terminated copy of it.
@@ -296,37 +300,152 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		goto End;
 	}
 
-	while (CurrentNode != NULL && CurrentNode->Next != NULL)
+	// NOTE: Currently this only scans top-level global security group membership of the user.
+	// It does NOT expand all nested group membership.
+	// I do this on purpose because this is much faster, and I'm worried that calculating all nested
+	// group membership could slow us down too much.
+	if (wcslen(gApplyToTheseGroups) > 0)
 	{
-		CurrentNode = CurrentNode->Next;
+		NET_API_STATUS Status = ERROR_SUCCESS;
+		LPGROUP_USERS_INFO_0 GroupMemberships = NULL;
+		DWORD EntriesRead = 0;
+		DWORD TotalEntries = 0;
+		Status = NetUserGetGroups(
+			NULL,
+			AccountNameCopy,
+			0,
+			(LPBYTE*)&GroupMemberships,
+			MAX_PREFERRED_LENGTH,
+			&EntriesRead,
+			&TotalEntries);
 
-		if (wcsnlen(CurrentNode->String, MAX_BLACKLIST_STRING_SIZE) == 0)
+		if ((Status == NERR_Success) && (EntriesRead > 0) && (EntriesRead == TotalEntries))
+		{
+			LogMessageW(
+				LOG_DEBUG,
+				L"[%s:%s@%d] %d group memberships found for user %s.",
+				__FILENAMEW__,
+				__FUNCTIONW__,
+				__LINE__,
+				EntriesRead,
+				AccountNameCopy);
+
+			// gApplyToThesegroups always ends with a comma.
+			wchar_t GroupName[256] = { 0 };
+			wchar_t* c = gApplyToTheseGroups;
+			int idx = 0;
+			while (*c != L'\0')
+			{
+				if (*c != ',')
+				{
+					GroupName[idx++] = *c;
+				}
+				else
+				{
+					GroupName[idx] = L'\0';
+					for (DWORD g = 0; g < EntriesRead; g++)
+					{
+						//LogMessageW(LOG_DEBUG, L"Comparing GroupName %s to %s", GroupName, GroupMemberships[g].grui0_name);
+						if (_wcsicmp(GroupName, GroupMemberships[g].grui0_name) == 0)
+						{
+							LogMessageW(
+								LOG_DEBUG,
+								L"[%s:%s@%d] User %s was found to be a member of group %s.",
+								__FILENAMEW__,
+								__FUNCTIONW__,
+								__LINE__,
+								AccountNameCopy,
+								GroupMemberships[g].grui0_name);
+							SkipThisUser = FALSE;
+							break;		
+						}					
+					}					
+					idx = 0;
+					memset(GroupName, 0, sizeof(GroupName));
+				}
+				if (SkipThisUser == FALSE)
+				{
+					break;
+				}
+				c++;
+			}
+		}
+		else
 		{
 			LogMessageW(
 				LOG_ERROR,
-				L"[%s:%s@%d] ERROR: This blacklist token is 0 characters long. It will be skipped. Remove blank lines from your blacklist file!", 
+				L"[%s:%s@%d] ERROR: NetUserGetGroups failed with 0x%08lx while trying to check the group memberships for %s!",
+				__FILENAMEW__,
+				__FUNCTIONW__,
+				__LINE__,
+				Status,
+				AccountNameCopy);
+			if (GroupMemberships)
+			{
+				NetApiBufferFree(GroupMemberships);
+			}
+			PasswordIsOK = FALSE;
+			goto End;
+		}
+
+		if (GroupMemberships)
+		{
+			NetApiBufferFree(GroupMemberships);
+		}
+	}
+	else
+	{
+		LogMessageW(LOG_DEBUG, 
+			L"[%s:%s@%d] Not filtering by security group.",
+			__FILENAMEW__,
+			__FUNCTIONW__,
+			__LINE__);
+		SkipThisUser = FALSE;
+	}
+
+	if (SkipThisUser)
+	{
+		LogMessageW(
+			LOG_DEBUG,
+			L"[%s:%s@%d] Skipping the user %s because they are not a member of any of the groups specified in the registry setting %s.",
+			__FILENAMEW__,
+			__FUNCTIONW__,
+			__LINE__,
+			AccountNameCopy,
+			FILTER_REG_APPLY_TO_GROUPS);
+		goto End;
+	}
+
+
+	while (CurrentNode != NULL && CurrentNode->Next != NULL)
+	{		
+		CurrentNode = CurrentNode->Next;
+
+		if (wcsnlen(CurrentNode->String, MAX_BLOCKLIST_STRING_SIZE) == 0)
+		{
+			LogMessageW(
+				LOG_ERROR,
+				L"[%s:%s@%d] ERROR: This blocklist token is 0 characters long. It will be skipped. Remove blank lines from your blocklist file!", 
 				__FILENAMEW__, 
 				__FUNCTIONW__, 
 				__LINE__);
 			continue;
 		}
 
-		// if the blacklisted string starts with ! that means this string is totally forbidden regardless of how big the overall password is.
+		// if the blocklisted string starts with ! that means this string is totally forbidden regardless of how big the overall password is.
 		// else we will honor the gTokenPercentageOfPassword rule.
 		// the password copy has already been towlower'd at this point; this is a case-insensitive search
 		if (CurrentNode->String[0] == '!')
-		{
-			wchar_t superblacklistedstring[MAX_BLACKLIST_STRING_SIZE] = { 0 };
-			wcscpy_s(superblacklistedstring, MAX_BLACKLIST_STRING_SIZE, CurrentNode->String + 1);
-			if (wcsstr(PasswordCopy, superblacklistedstring))
+		{			
+			if (wcsstr(PasswordCopy, CurrentNode->String + 1))
 			{
 				LogMessageW(
 					LOG_DEBUG,
-					L"[%s:%s@%d] Rejecting password because it contains the SUPER blacklisted string \"%s\"!",
+					L"[%s:%s@%d] Rejecting password because it contains the super-blocked string \"%s\"!",
 					__FILENAMEW__,
 					__FUNCTIONW__,
 					__LINE__,
-					superblacklistedstring);
+					CurrentNode->String + 1);
 				PasswordIsOK = FALSE;
 				goto End;
 			}
@@ -339,7 +458,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 				{
 					LogMessageW(
 						LOG_DEBUG,
-						L"[%s:%s@%d] Rejecting password because it contains the blacklisted string \"%s\" and it is at least %lu%% of the full password!",
+						L"[%s:%s@%d] Rejecting password because it contains the blocklisted string \"%s\" and it is at least %lu%% of the full password!",
 						__FILENAMEW__,
 						__FUNCTIONW__,
 						__LINE__,
@@ -349,17 +468,12 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 					goto End;
 				}
 			}
-		}
+		}		
 	}
 	
+	// Here we look at the original Password and not the toLowered PasswordCopy because we need case sensitivity for this section.
 	for (size_t Character = 0; Character < PasswordCopyLen; Character++)
 	{
-		// ASCII_LOWERCASE_BEGIN	97
-		// ASCII_LOWERCASE_END		122
-		// ASCII_UPPERCASE_BEGIN	65
-		// ASCII_UPPERCASE_END		90
-		// ASCII_DIGITS_BEGIN		48
-		// ASCII_DIGITS_END			57
 		if ((Password->Buffer[Character] >= ASCII_LOWERCASE_BEGIN) && (Password->Buffer[Character] <= ASCII_LOWERCASE_END))
 		{			
 			NumLowers++;
@@ -562,21 +676,21 @@ End:
 	//RtlSecureZeroMemory(&Password, Password->Length);
 
 	RtlSecureZeroMemory(PasswordCopy, sizeof(PasswordCopy));
-	LeaveCriticalSection(&gBlacklistCritSec);
+	LeaveCriticalSection(&gBlocklistCritSec);
 	return(PasswordIsOK);
 }
 
-DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
+DWORD WINAPI BlocklistThreadProc(_In_ LPVOID Args)
 {
 	UNREFERENCED_PARAMETER(Args);
 
 	while (TRUE)
 	{
-		HANDLE BlacklistFileHandle = INVALID_HANDLE_VALUE;
+		HANDLE BlocklistFileHandle = INVALID_HANDLE_VALUE;
 		LARGE_INTEGER StartTime = { 0 };
 		LARGE_INTEGER EndTime = { 0 };
 		LARGE_INTEGER ElapsedMicroseconds = { 0 };
-		EnterCriticalSection(&gBlacklistCritSec);
+		EnterCriticalSection(&gBlocklistCritSec);
 		QueryPerformanceCounter(&StartTime);
 
 		if (UpdateConfigurationFromRegistry() != ERROR_SUCCESS)
@@ -592,7 +706,7 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 		}
 
 		// We are being loaded by lsass.exe. The current working directory of lsass should be C:\Windows\System32
-		if ((BlacklistFileHandle = CreateFileW(gBlacklistFileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)) == INVALID_HANDLE_VALUE)
+		if ((BlocklistFileHandle = CreateFileW(gBlocklistFileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)) == INVALID_HANDLE_VALUE)
 		{
 			wchar_t CurrentDir[MAX_PATH] = { 0 };
 			GetCurrentDirectoryW(MAX_PATH, CurrentDir);
@@ -602,7 +716,7 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 				__FILENAMEW__, 
 				__FUNCTIONW__, 
 				__LINE__, 
-				gBlacklistFileName, 
+				gBlocklistFileName, 
 				CurrentDir, 
 				GetLastError());			
 			goto Sleep;
@@ -614,9 +728,9 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 			__FILENAMEW__, 
 			__FUNCTIONW__, 
 			__LINE__, 
-			gBlacklistFileName);
+			gBlocklistFileName);
 
-		if (GetFileTime(BlacklistFileHandle, NULL, NULL, &gBlackListNewFileTime) == 0)
+		if (GetFileTime(BlocklistFileHandle, NULL, NULL, &gBlockListNewFileTime) == 0)
 		{
 			LogMessageW(
 				LOG_ERROR,
@@ -624,13 +738,13 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 				__FILENAMEW__, 
 				__FUNCTIONW__, 
 				__LINE__, 
-				gBlacklistFileName, 
+				gBlocklistFileName, 
 				GetLastError());
 			ASSERT(0);
 			goto Sleep;
 		}
 
-		if ((CompareFileTime(&gBlackListNewFileTime, &gBlackListOldFileTime) != 0) || gBlackListOldFileTime.dwLowDateTime == 0)
+		if ((CompareFileTime(&gBlockListNewFileTime, &gBlockListOldFileTime) != 0) || gBlockListOldFileTime.dwLowDateTime == 0)
 		{
 			LogMessageW(
 				LOG_DEBUG,
@@ -638,11 +752,11 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 				__FILENAMEW__, 
 				__FUNCTIONW__, 
 				__LINE__, 
-				gBlacklistFileName);
+				gBlocklistFileName);
 			// Initialize list head if we're here for the first time.
-			if (gBlacklistHead == NULL)
+			if (gBlocklistHead == NULL)
 			{
-				if ((gBlacklistHead = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(BADSTRING))) == NULL)
+				if ((gBlocklistHead = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(BADSTRING))) == NULL)
 				{
 					LogMessageW(
 						LOG_ERROR,
@@ -655,8 +769,8 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 				}
 			}
 
-			// Need to clear blacklist and free memory first.
-			BADSTRING* CurrentNode = gBlacklistHead;
+			// Need to clear blocklist and free memory first.
+			BADSTRING* CurrentNode = gBlocklistHead;
 			BADSTRING* NextNode = CurrentNode->Next;
 
 			while (NextNode != NULL)
@@ -668,7 +782,7 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 				{
 					LogMessageW(
 						LOG_ERROR,
-						L"[%s:%s@%d] HeapFree failed while clearing blacklist! Error 0x%08lx", 
+						L"[%s:%s@%d] HeapFree failed while clearing blocklist! Error 0x%08lx", 
 						__FILENAMEW__, 
 						__FUNCTIONW__, 
 						__LINE__, 
@@ -691,7 +805,7 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 				goto Sleep;
 			}
 
-			gBlacklistHead->Next = CurrentNode;
+			gBlocklistHead->Next = CurrentNode;
 
 			DWORD TotalBytesRead = 0;
 			DWORD BytesRead = 0;
@@ -701,7 +815,7 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 
 			while (TRUE)
 			{
-				if (ReadFile(BlacklistFileHandle, &Read, 1, &BytesRead, NULL) == FALSE)
+				if (ReadFile(BlocklistFileHandle, &Read, 1, &BytesRead, NULL) == FALSE)
 				{
 					break;
 				}
@@ -711,7 +825,7 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 					break;
 				}
 
-				if (BytesOnThisLine >= MAX_BLACKLIST_STRING_SIZE - 1)
+				if (BytesOnThisLine >= MAX_BLOCKLIST_STRING_SIZE - 1)
 				{
 					LogMessageW(
 						LOG_ERROR,
@@ -719,7 +833,7 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 						__FILENAMEW__, 
 						__FUNCTIONW__, 
 						__LINE__, 
-						MAX_BLACKLIST_STRING_SIZE);
+						MAX_BLOCKLIST_STRING_SIZE);
 					Read = 0x0A;
 				}
 
@@ -770,16 +884,16 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 				__LINE__, 
 				TotalBytesRead, 
 				LinesRead, 
-				gBlacklistFileName);
+				gBlocklistFileName);
 		}	
 
 	Sleep:
-		if (BlacklistFileHandle != INVALID_HANDLE_VALUE)
+		if (BlocklistFileHandle != INVALID_HANDLE_VALUE)
 		{
-			CloseHandle(BlacklistFileHandle);
+			CloseHandle(BlocklistFileHandle);
 		}
 
-		gBlackListOldFileTime = gBlackListNewFileTime;
+		gBlockListOldFileTime = gBlockListNewFileTime;
 		QueryPerformanceCounter(&EndTime);
 		ElapsedMicroseconds.QuadPart = EndTime.QuadPart - StartTime.QuadPart;		
 		ElapsedMicroseconds.QuadPart *= 1000000;		
@@ -791,8 +905,8 @@ DWORD WINAPI BlacklistThreadProc(_In_ LPVOID Args)
 			__FUNCTIONW__, 
 			__LINE__, 
 			ElapsedMicroseconds.QuadPart);
-		LeaveCriticalSection(&gBlacklistCritSec);
-		Sleep(BLACKLIST_THREAD_RUN_FREQUENCY);
+		LeaveCriticalSection(&gBlocklistCritSec);
+		Sleep(BLOCKLIST_THREAD_RUN_FREQUENCY);
 	}
 
 	return(0);
@@ -817,7 +931,7 @@ DWORD UpdateConfigurationFromRegistry(void)
 	DWORD_REG_SETTING DwordRegValues[] = { 
 		{ .Name = FILTER_REG_DEBUG, .Destination = &gDebug, .MinValue = 0, .MaxValue = 1, .DefaultValue = 0 },
 		{ .Name = FILTER_REG_REQUIRE_EITHER_LOWER_OR_UPPER, .Destination = &gRequireEitherUpperOrLower, .MinValue = 0, .MaxValue = 1, .DefaultValue = 0 },
-		{ .Name = FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD, .Destination = &gTokenPercentageOfPassword, .MinValue = 0, .MaxValue = 100, .DefaultValue = TOKEN_PERCENTAGE_OF_PASSWORD_DEFAULT },
+		{ .Name = FILTER_REG_TOKEN_PERCENTAGE_OF_PASSWORD, .Destination = &gTokenPercentageOfPassword, .MinValue = 0, .MaxValue = 100, .DefaultValue = 60 },
 		{ .Name = FILTER_REG_MIN_LOWER, .Destination = &gMinLower, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
 		{ .Name = FILTER_REG_MIN_UPPER, .Destination = &gMinUpper, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
 		{ .Name = FILTER_REG_MIN_DIGIT, .Destination = &gMinDigit, .MinValue = 0, .MaxValue = 16, .DefaultValue = 0 },
@@ -869,6 +983,7 @@ DWORD UpdateConfigurationFromRegistry(void)
 		{
 			if (Status == ERROR_FILE_NOT_FOUND)
 			{
+				*(DWORD*)DwordRegValues[setting].Destination = DwordRegValues[setting].DefaultValue;
 				LogMessageW(
 					LOG_DEBUG,
 					L"[%s:%s@%d] Registry value %s was not found. Using previous or default value %lu", 
@@ -933,19 +1048,19 @@ DWORD UpdateConfigurationFromRegistry(void)
 		}
 	}
 
-	RegDataSize = (DWORD)sizeof(gBlacklistFileName);
-	if ((Status = RegGetValueW(SubKeyHandle, NULL, FILTER_REG_BLACKLIST_FILENAME, RRF_RT_REG_SZ, NULL, &gBlacklistFileName, &RegDataSize)) != ERROR_SUCCESS)
+	RegDataSize = (DWORD)sizeof(gBlocklistFileName);
+	if ((Status = RegGetValueW(SubKeyHandle, NULL, FILTER_REG_BLOCKLIST_FILENAME, RRF_RT_REG_SZ, NULL, &gBlocklistFileName, &RegDataSize)) != ERROR_SUCCESS)
 	{
 		if (Status == ERROR_FILE_NOT_FOUND)
 		{
 			LogMessageW(
 				LOG_DEBUG,
-				L"[%s:%s@%d] Registry value %s was not found. Using previous value %s", 
+				L"[%s:%s@%d] Registry value %s was not found. Using previous or default value %s", 
 				__FILENAMEW__, 
 				__FUNCTIONW__, 
 				__LINE__, 
-				FILTER_REG_BLACKLIST_FILENAME, 
-				gBlacklistFileName);
+				FILTER_REG_BLOCKLIST_FILENAME, 
+				gBlocklistFileName);
 			Status = ERROR_SUCCESS;
 		}
 		else
@@ -956,7 +1071,7 @@ DWORD UpdateConfigurationFromRegistry(void)
 				__FILENAMEW__, 
 				__FUNCTIONW__, 
 				__LINE__, 
-				FILTER_REG_BLACKLIST_FILENAME, 
+				FILTER_REG_BLOCKLIST_FILENAME, 
 				Status);
 		}
 	}
@@ -968,10 +1083,10 @@ DWORD UpdateConfigurationFromRegistry(void)
 			__FILENAMEW__, 
 			__FUNCTIONW__, 
 			__LINE__, 
-			FILTER_REG_BLACKLIST_FILENAME, 
-			gBlacklistFileName);
+			FILTER_REG_BLOCKLIST_FILENAME, 
+			gBlocklistFileName);
 
-		if (wcslen(gBlacklistFileName) == 0)
+		if (wcslen(gBlocklistFileName) == 0)
 		{
 			LogMessageW(
 				LOG_ERROR,
@@ -979,9 +1094,54 @@ DWORD UpdateConfigurationFromRegistry(void)
 				__FILENAMEW__, 
 				__FUNCTIONW__, 
 				__LINE__, 
-				FILTER_REG_BLACKLIST_FILENAME);
+				FILTER_REG_BLOCKLIST_FILENAME);
 		}
-	}	
+	}
+
+	RegDataSize = (DWORD)sizeof(gApplyToTheseGroups);
+	if ((Status = RegGetValueW(SubKeyHandle, NULL, FILTER_REG_APPLY_TO_GROUPS, RRF_RT_REG_SZ, NULL, &gApplyToTheseGroups, &RegDataSize)) != ERROR_SUCCESS)
+	{
+		if (Status == ERROR_FILE_NOT_FOUND)
+		{
+			LogMessageW(
+				LOG_DEBUG,
+				L"[%s:%s@%d] Registry value %s was not found. Using previous or default value %s",
+				__FILENAMEW__,
+				__FUNCTIONW__,
+				__LINE__,
+				FILTER_REG_APPLY_TO_GROUPS,
+				L"(empty)");
+			memset(gApplyToTheseGroups, 0, sizeof(gApplyToTheseGroups));
+			Status = ERROR_SUCCESS;
+		}
+		else
+		{
+			LogMessageW(
+				LOG_ERROR,
+				L"[%s:%s@%d] Failed to read registry value %s! Error 0x%08lx",
+				__FILENAMEW__,
+				__FUNCTIONW__,
+				__LINE__,
+				FILTER_REG_APPLY_TO_GROUPS,
+				Status);
+		}
+	}
+	else
+	{
+		LogMessageW(
+			LOG_DEBUG,
+			L"[%s:%s@%d] Successfully read registry value %s. Data: %s",
+			__FILENAMEW__,
+			__FUNCTIONW__,
+			__LINE__,
+			FILTER_REG_APPLY_TO_GROUPS,
+			gApplyToTheseGroups);
+
+		// stick a comma on the end to make it easier to parse later on.
+		wcscat_s(gApplyToTheseGroups, sizeof(gApplyToTheseGroups), L",");
+	}
+
+
 
 Exit:
 

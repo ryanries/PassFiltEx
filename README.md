@@ -6,7 +6,7 @@ PassFiltEx.c
 
 Author: Joseph Ryan Ries 2019-2025 <ryanries09@gmail.com>,<ryan.ries@microsoft.com>
 
-A password filter for Active Directory that uses a blacklist of bad passwords/character sequences.
+A password filter for Active Directory that uses a blocklist of bad passwords/character sequences.
 
 Technical Reference: https://msdn.microsoft.com/en-us/library/windows/desktop/ms721882(v=vs.85).aspx
 
@@ -25,12 +25,15 @@ Installation:
 
 - Copy PassFiltEx.dll into the C:\Windows\System32 (i.e. %SystemRoot%\System32) directory on your domain controller.
 
-- Copy the PassFiltExBlacklist.txt file into the C:\Windows\System32 (or %SystemRoot%\System32) directory.
+- Copy the PassFiltExBlocklist.txt file into the C:\Windows\System32 (or %SystemRoot%\System32) directory.
 
-- Replace the text file with a list of your own. This project does not include a complete production ready blacklist file - you must supply your own.
+- **WARNING:** As of version 1.6.2, the filename was changed from PassFiltExBlacklist.txt to PassFiltExBlocklist.txt. If you are upgrading from
+  a previous version, you MUST update your filename accordingly!
 
-- **IMPORTANT:** You MUST go find your own blacklist file. The blacklist file that comes with this project is not
-  sufficient to meet your needs on its own. There are many example blacklists of known-bad passwords out there, many hosted right here on GitHub!
+- Replace the text file with a list of your own. This project does not include a complete production ready blocklist file - you must supply your own.
+
+- **IMPORTANT:** You MUST go find your own blocklist file. The blocklist file that comes with this project is not
+  sufficient to meet your needs on its own. There are many example blocklists of known-bad passwords out there, many hosted right here on GitHub!
 
 - Edit the registry: HKLM\SYSTEM\CurrentControlSet\Control\Lsa => Notification Packages
 
@@ -60,7 +63,7 @@ Operation:
 
   Subkey: HKLM\SOFTWARE\PassFiltEx
   
-    **BlacklistFileName**, REG_SZ, Default: PassFiltExBlacklist.txt
+  **BlocklistFileName**, REG_SZ, Default: PassFiltExBlocklist.txt
 
 	**TokenPercentageOfPassword**, REG_DWORD, Default: 60
 	
@@ -81,34 +84,41 @@ Operation:
 	**BlockRepeatingChars**, REG_DWORD, Default: 0
 	
 	**Debug**, REG_DWORD, Default: 0
+
+  **ApplyToTheseGroupsOnly**, REG_SZ, Default: (empty)
 	
+ 
+![regedit](regedit2.png "optional reg entries")
+
+These registry entries are optional and will not exist by default. Feel free to create them if you need to customize the password filter's behavior.	
 	
-	
-![regedit](regedit2.png "optional reg entries")	
-	
-  **BlacklistFileName** allows you to specify a custom path to a blacklist file. By default if there is nothing specified, it is
-  PassFiltExBlacklist.txt. The current working directory of the password filter is %SystemRoot%\System32, but you can specify
+  **BlocklistFileName** allows you to specify a custom path to a blocklist file.
+
+  **WARNING: This setting used to be called BlacklistFileName. I changed the name to BlocklistFileName starting in v1.6 and I also changed the default file name to PassFiltExBlocklist.txt. You must update your config if you are upgrading from a previous version!**
+
+  By default if there is nothing specified, it is
+  PassFiltExBlocklist.txt. The current working directory of the password filter is %SystemRoot%\System32, but you can specify
   a fully-qualified path name too. Even a UNC path (such as something in SYSVOL) if you want. WARNING: You are responsible 
-  for properly setting the permissions on the blacklist file so that it may only be edited and viewed by authorized users.
-  You can store the blacklist file in SYSVOL if you want, but you must ask yourself whether you want all Authenticated Users
-  to have the ability to read your blacklist file.
+  for properly setting the permissions on the blocklist file so that it may only be edited and viewed by authorized users.
+  You can store the blocklist file in SYSVOL if you want, but you must ask yourself whether you want all Authenticated Users
+  to have the ability to read your blocklist file. (Hint: you don't)
   
-  **TokenPercentageOfPassword** allows you specify how much of the entire password must consist of the blacklisted token
+  **TokenPercentageOfPassword** allows you specify how much of the entire password must consist of the blocklisted token
   before the password change is rejected. The default is 60% if nothing is specified. The registry value is REG_DWORD, with 
   the value 60 decimal representing 60%, which is converted to float 0 - 1.0 at runtime. For example, if the character sequence
   starwars appeared in the blacklist file, and TokenPercentageOfPassword was set to 60, then the password Starwars1! would 
-  be rejected, because more than 60% of the proposed password is made up of the blacklisted term starwars. However, the 
-  password starwars1!DarthVader88 would be accepted, because even though it contains the blacklisted sequence starwars, more
+  be rejected, because more than 60% of the proposed password is made up of the blocklisted term starwars. However, the 
+  password starwars1!DarthVader88 would be accepted, because even though it contains the blocklisted sequence starwars, more
   than 60% of the proposed password is NOT starwars.
   
-  As of version 1.5.55, if a line in the blacklist file starts with the ! character, then TokenPercentageOfPassword will be ignored
-  for that blacklisted string, and if the password contains that blacklisted string at all, it will be rejected regardless of how
+  As of version 1.5.55, if a line in the blocklist file starts with the ! character, then TokenPercentageOfPassword will be ignored
+  for that blocklisted string, and if the password contains that blocklisted string at all, it will be rejected regardless of how
   long the overall password is.
   
-  In the following example screenshot, the character sequence "set" is considered to be SUPER-blacklisted, meaning that passwords
+  In the following example screenshot, the character sequence "set" is considered to be SUPER-blocked, meaning that passwords
   may not contain the character sequence "set" in them at all, whatsoever, regardless of how long the rest of the password is.
   
-  ![superblacklisted](superblacklisted1.png "set is SUPER blacklisted")	
+  ![superblocked](superblocklisted1.png "set is SUPER-blocked")	
   
   
   **MinLower/MinUpper/etc.** allows you to specify if you require the user's password to contain multiple instances of any
@@ -118,14 +128,21 @@ Operation:
   
   **BlockRepeatingChars** 0 means it is off, 1 means it is on. This will block repeating sequences of 3 or more e.g. 'aaa' or '111', etc.
 
-  **Debug** 0 means it's off, 1 means it is on. If Debug is on, additional log messages will be written to the log file.
-  If Debug is off, then only serious errors will be logged.
-  
+  **ApplyToTheseGroupsOnly** A comma-separated list of global security groups that this password filter will apply to. Currently only direct membership
+  in global security groups is checked -- nested group membership is not expanded. This choice was made for performance reasons. I may reevaluate in the future.
+  Do not leave spaces before or after the commas. Spaces in group names are fine. If this registry entry is empty or does not exist, then all users
+  will have their passwords checked. Otherwise if this registry entry is populated, only the users who are specified groups will have their passwords checked.
+  Users who are not members of the specified groups will get an automatic pass from this filter. (Other filters on the domain controller still apply.)
 
+  **Debug** 0 means it's off, 1 means it is on. If Debug is on, additional log messages will be written to the log file.
+  If Debug is off, then only serious errors will be logged. Leaving Debug turned on isn't recommended because it can fill up your domain
+  controller's disk space with thousands of 1MB log files.
+  
+-------------------------
   
 - Comparisons are NOT case sensitive. (Though the final password will of course still be case sensitive.)
 
-- The blacklist is reloaded every 60 seconds, so feel free to edit the blacklist file at will. The password filter will read the 
+- The blocklist is reloaded every 60 seconds, so feel free to edit the blocklist file at will. The password filter will read the 
   new updates within a minute.
   
 - Registry settings are re-read every 60 seconds as well so you can change the registry settings without having to restart the whole machine.
@@ -133,12 +150,12 @@ Operation:
 - All registry settings are optional. They do not need to exist. If a registry setting does not exist, the default is used.
 
 - Unicode support is not thoroughly tested. Everything is assumed ASCII/ANSI. You can still use Unicode characters in your passwords, but Unicode
-  characters will not match against anything in the blacklist.
+  characters will not match against anything in the blocklist. But they will count toward the total specified by the MinUnicode setting, if using that setting.
 
-- Either Windows or Unix line endings (either \r\n or \n) in the blacklist file should both work. (Notepad++ is a good editor for 
+- Either Windows or Unix line endings (either \r\n or \n) in the blocklist file should both work. (Notepad++ is a good editor for 
   finding unprintable characters in your text file.)
 
-- For example, if the blacklist contains the token "abc", then the passwords abc and abc123 and AbC123 and 123Abc will all be 
+- For example, if the blocklist contains the token "abc", then the passwords abc and abc123 and AbC123 and 123Abc will all be 
   rejected. But Abc123! will be accepted, because the token abc does not make up 60% or more of the full password.
 
 - FAQ: Can you/will you integrate with Troy Hunt's "haveibeenpwned" API? Answer: Probably not. First, I'm pretty sure that has
@@ -158,6 +175,19 @@ You can use the command "tasklist /m PassFiltEx.dll" to verify whether the modul
 security features such as RunAsPPL, antivirus, etc., might try to prevent lsass from loading the module.
 
 ![tasklist](tasklistmodule.png "tasklist /m PassFiltEx.dll")	
+
+
+**PassFiltExTest**
+
+This executable is for easily testing the filter without having to install the filter on a domain controller.
+PassFiltExTest.exe needs to be run as Administrator with UAC elevation though. This is because PassFiltEx.dll opens
+the registry key in HKLM with write permissions, which requires admin.
+It also requires that it be run on a machine that is a member of an Active Directory domain. This is because the
+functionality that checks group membership requires AD domain membership.
+The PassFiltEx.dll and the PassFiltExBlocklist.txt file need to be in the same directory as PassFiltExTest.exe.
+Press Ctrl+C to quit the program.
+
+![PassFiltExTest](passfiltextest.png "PassFiltExTest.exe")
 
 
 Coding Guidelines:
