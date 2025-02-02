@@ -27,8 +27,8 @@ Installation:
 
 - Copy the PassFiltExBlocklist.txt file into the C:\Windows\System32 (or %SystemRoot%\System32) directory.
 
-- **WARNING:** As of version 1.6.2, the filename was changed from PassFiltExBlacklist.txt to PassFiltExBlocklist.txt. If you are upgrading from
-  a previous version, you MUST update your filename accordingly!
+- **WARNING:** As of version 1.6.2, the default filename was changed from PassFiltExBlacklist.txt to PassFiltExBlocklist.txt. If you are upgrading from
+  a previous version, and you are using the default filename, you MUST update your filename accordingly!
 
 - Replace the text file with a list of your own. This project does not include a complete production ready blocklist file - you must supply your own.
 
@@ -94,7 +94,7 @@ These registry entries are optional and will not exist by default. Feel free to 
 	
   **BlocklistFileName** allows you to specify a custom path to a blocklist file.
 
-  **WARNING: This setting used to be called BlacklistFileName. I changed the name to BlocklistFileName starting in v1.6 and I also changed the default file name to PassFiltExBlocklist.txt. You must update your config if you are upgrading from a previous version!**
+  **WARNING: This setting used to be called BlacklistFileName. I changed the name to BlocklistFileName starting in v1.6 and I also changed the default file name to PassFiltExBlocklist.txt. You must update your config if you are upgrading from a previous version and you are using the default filename!**
 
   By default if there is nothing specified, it is
   PassFiltExBlocklist.txt. The current working directory of the password filter is %SystemRoot%\System32, but you can specify
