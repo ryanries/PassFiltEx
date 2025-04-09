@@ -167,8 +167,10 @@ These registry entries are optional and will not exist by default. Feel free to 
  - NOTE: This binary is not signed with a code signing certificate, which means the DLL will not load if LSA Protection, aka RunAsPPL is enabled.
    Only by getting the module signed by Microsoft as outlined [here](https://learn.microsoft.com/en-us/windows-hardware/drivers/dashboard/file-signing-manage) will the password filter load into lsass if LSA Protection is enabled.
  
- - WARNING: Do not use on domain controllers where the Failover Clustering role has also been installed.
-   You should never install cluster services on a DC anyway. But just know that PassFiltEx is not compatible with cluster services.
+ - WARNING: It was reported by one user that there might be a conflict between PassFiltEx 
+   and ClusAuthMgr that causes the DC to hang. ClusAuthMgr is the password filter that is installed along with 
+   cluster services. You should never install failover cluster services on a DC anyway. But it is technically possible to do so. I tried to reproduce
+   this and I could not repro, but just so you're aware it was reported by one user.
 
  - WARNING: Only install PassFiltEx after fully promoting the system to a domain controller, and uninstall
    PassFiltEx before demoting the domain controller.
