@@ -166,6 +166,12 @@ These registry entries are optional and will not exist by default. Feel free to 
   
  - NOTE: This binary is not signed with a code signing certificate, which means the DLL will not load if LSA Protection, aka RunAsPPL is enabled.
    Only by getting the module signed by Microsoft as outlined [here](https://learn.microsoft.com/en-us/windows-hardware/drivers/dashboard/file-signing-manage) will the password filter load into lsass if LSA Protection is enabled.
+ 
+ - WARNING: Do not use on domain controllers where the Failover Clustering role has also been installed.
+   You should never install cluster services on a DC anyway. But just know that PassFiltEx is not compatible with cluster services.
+
+ - WARNING: Only install PassFiltEx after fully promoting the system to a domain controller, and uninstall
+   PassFiltEx before demoting the domain controller.
 
 
 The debug log is \Windows\system32\PassFiltEx.log. A new log file is automatically started once the current log file reaches 1MB.
@@ -196,6 +202,7 @@ Coding Guidelines:
   If it crashes, it will crash the lsass process of the domain controller, which will in turn
   reboot the domain controller. It can even render a domain controller unbootable by putting the system into a boot loop.
   You'd need to boot the machine into a recovery environment and edit the registry offline to remove the password filter from the registry. 
+  (Or just delete or rename the PassFiltEx.dll file from the recovery environment. It's not the end of the world; don't panic.)
   Therefore, this code must be immaculate and as reliable as you can possibly imagine. Avoid being "clever" and just write "boring", stable code.
   If you don't feel very comfortable with that, just leave me a note on what you want to see added and I'll see about it.
   That means /Wall, /WX and static analyzer at a minimum.
