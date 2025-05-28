@@ -758,6 +758,8 @@ DWORD WINAPI BlocklistThreadProc(_In_ LPVOID Args)
 				__FUNCTIONW__, 
 				__LINE__, 
 				gBlocklistFileName);
+			EnterCriticalSection(&gBlocklistCritSec);
+			csHeld = TRUE;			
 			// Initialize list head if we're here for the first time.
 			if (gBlocklistHead == NULL)
 			{
@@ -773,9 +775,6 @@ DWORD WINAPI BlocklistThreadProc(_In_ LPVOID Args)
 					goto Sleep;
 				}
 			}
-
-			EnterCriticalSection(&gBlocklistCritSec);
-			csHeld = TRUE;
 
 			// Need to clear blocklist and free memory first.
 			BADSTRING* CurrentNode = gBlocklistHead;
