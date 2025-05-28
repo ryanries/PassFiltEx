@@ -14,7 +14,7 @@
 
 // The name of the log file.
 #define FILTER_LOG_FILE_NAME	L"PassFiltEx.log"
-#define FILTER_VERSION_STRING	L"1.6.2"
+#define FILTER_VERSION_STRING	L"1.6.3"
 
 // These are the names of the registry values.
 #define FILTER_REG_DEBUG													L"Debug"
@@ -56,4 +56,4 @@ __declspec(dllexport) NTSTATUS CALLBACK PasswordChangeNotify(_In_ PUNICODE_STRIN
 __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountName, _In_ PUNICODE_STRING FullName, _In_ PUNICODE_STRING Password, _In_ BOOL SetOperation);
 DWORD WINAPI BlocklistThreadProc(_In_ LPVOID Args);
 DWORD UpdateConfigurationFromRegistry(void);
-void LogMessageW(_In_ LOG_LEVEL LogLevel, _In_ wchar_t* Message, _In_ ...);
+void LogMessageW(_In_ LOG_LEVEL LogLevel, _In_ _Printf_format_string_ wchar_t* Message, _In_ ...);

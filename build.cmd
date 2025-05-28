@@ -18,14 +18,14 @@ exit
 :debug_build 
 if not exist .\bin\ mkdir .\bin
 if not exist .\bin\debug\ mkdir .\bin\debug
-clang -shared -o .\bin\debug\%PROJECTNAME%.dll *.c -Wall -Wextra -march=rocketlake -O0 -g3 -D_DEBUG -D_WIN64 -Wl,%PROJECTNAME%.res
+clang -shared -o .\bin\debug\%PROJECTNAME%.dll *.c -Wall -Wextra -Wformat -march=x86-64-v3 -O0 -g3 -D_DEBUG -D_WIN64 -Wl,%PROJECTNAME%.res
 if %ERRORLEVEL% neq 0 goto build_fail
 echo Debug build succeeded.
 exit
 :release_build
 if not exist .\bin\ mkdir .\bin
 if not exist .\bin\release\ mkdir .\bin\release
-clang -shared -o .\bin\release\%PROJECTNAME%.dll *.c -Wall -Wextra -march=rocketlake -O3 -D_WIN64 -Wl,%PROJECTNAME%.res
+clang -shared -o .\bin\release\%PROJECTNAME%.dll *.c -Wall -Wextra -Wformat -march=x86-64-v3 -O3 -D_WIN64 -Wl,%PROJECTNAME%.res
 if %ERRORLEVEL% neq 0 goto build_fail
 echo Release build succeeded.
 exit

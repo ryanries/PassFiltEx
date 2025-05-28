@@ -15,8 +15,6 @@ with no guarantees, liability, warranties or support.
 01/29/2025: I have removed the rest of the readme text. See the external README.md file for more info.
 */
 
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-#pragma clang diagnostic ignored "-Wdeclaration-after-statement"
 #define WIN32_LEAN_AND_MEAN
 #define UNICODE
 #define WIN32_NO_STATUS
@@ -210,6 +208,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 {
 	UNREFERENCED_PARAMETER(FullName);
 
+	BOOL csHeld = FALSE;
 	BOOL PasswordIsOK = TRUE;
 	BOOL SkipThisUser = TRUE;
 	size_t PasswordCopyLen = 0;
@@ -222,9 +221,7 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 	LARGE_INTEGER EndTime = { 0 };
 	LARGE_INTEGER ElapsedMicroseconds = { 0 };
 
-	EnterCriticalSection(&gBlocklistCritSec);
 	QueryPerformanceCounter(&StartTime);
-	BADSTRING* CurrentNode = gBlocklistHead;
 
 	// UNICODE_STRINGs are usually not null-terminated.
 	// Let's make a null-terminated copy of it.
@@ -416,6 +413,9 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 		goto End;
 	}
 
+	EnterCriticalSection(&gBlocklistCritSec);
+	csHeld = TRUE;
+	BADSTRING* CurrentNode = gBlocklistHead;
 
 	while (CurrentNode != NULL && CurrentNode->Next != NULL)
 	{		
@@ -470,6 +470,8 @@ __declspec(dllexport) BOOL CALLBACK PasswordFilter(_In_ PUNICODE_STRING AccountN
 			}
 		}		
 	}
+	LeaveCriticalSection(&gBlocklistCritSec);
+	csHeld = FALSE;
 	
 	// Here we look at the original Password and not the toLowered PasswordCopy because we need case sensitivity for this section.
 	for (size_t Character = 0; Character < PasswordCopyLen; Character++)
@@ -676,7 +678,10 @@ End:
 	//RtlSecureZeroMemory(&Password, Password->Length);
 
 	RtlSecureZeroMemory(PasswordCopy, sizeof(PasswordCopy));
-	LeaveCriticalSection(&gBlocklistCritSec);
+	if (csHeld)
+	{
+		LeaveCriticalSection(&gBlocklistCritSec);
+	}
 	return(PasswordIsOK);
 }
 
@@ -686,11 +691,11 @@ DWORD WINAPI BlocklistThreadProc(_In_ LPVOID Args)
 
 	while (TRUE)
 	{
+		BOOL csHeld = FALSE;
 		HANDLE BlocklistFileHandle = INVALID_HANDLE_VALUE;
 		LARGE_INTEGER StartTime = { 0 };
 		LARGE_INTEGER EndTime = { 0 };
 		LARGE_INTEGER ElapsedMicroseconds = { 0 };
-		EnterCriticalSection(&gBlocklistCritSec);
 		QueryPerformanceCounter(&StartTime);
 
 		if (UpdateConfigurationFromRegistry() != ERROR_SUCCESS)
@@ -768,6 +773,9 @@ DWORD WINAPI BlocklistThreadProc(_In_ LPVOID Args)
 					goto Sleep;
 				}
 			}
+
+			EnterCriticalSection(&gBlocklistCritSec);
+			csHeld = TRUE;
 
 			// Need to clear blocklist and free memory first.
 			BADSTRING* CurrentNode = gBlocklistHead;
@@ -905,7 +913,10 @@ DWORD WINAPI BlocklistThreadProc(_In_ LPVOID Args)
 			__FUNCTIONW__, 
 			__LINE__, 
 			ElapsedMicroseconds.QuadPart);
-		LeaveCriticalSection(&gBlocklistCritSec);
+		if (csHeld)
+		{
+			LeaveCriticalSection(&gBlocklistCritSec);
+		}
 		Sleep(BLOCKLIST_THREAD_RUN_FREQUENCY);
 	}
 
@@ -1161,7 +1172,7 @@ Exit:
 	return(Status);
 }
 
-void LogMessageW(_In_ LOG_LEVEL LogLevel, _In_ wchar_t* Message, _In_ ...)
+void LogMessageW(_In_ LOG_LEVEL LogLevel, _In_ _Printf_format_string_ wchar_t* Message, _In_ ...)
 {
 	size_t MessageLength = 0;
 	SYSTEMTIME Time = { 0 };
