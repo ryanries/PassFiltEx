@@ -713,6 +713,7 @@ DWORD WINAPI BlocklistThreadProc(_In_ LPVOID Args)
 		// We are being loaded by lsass.exe. The current working directory of lsass should be C:\Windows\System32
 		if ((BlocklistFileHandle = CreateFileW(gBlocklistFileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)) == INVALID_HANDLE_VALUE)
 		{
+			DWORD lastError = GetLastError();			
 			wchar_t CurrentDir[MAX_PATH] = { 0 };
 			GetCurrentDirectoryW(MAX_PATH, CurrentDir);
 			LogMessageW(
@@ -723,7 +724,7 @@ DWORD WINAPI BlocklistThreadProc(_In_ LPVOID Args)
 				__LINE__, 
 				gBlocklistFileName, 
 				CurrentDir, 
-				GetLastError());			
+				lastError);			
 			goto Sleep;
 		}
 
