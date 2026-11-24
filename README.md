@@ -96,7 +96,7 @@ These registry entries are optional and will not exist by default. Feel free to 
 
   **WARNING: This setting used to be called BlacklistFileName. I changed the name to BlocklistFileName starting in v1.6 and I also changed the default file name to PassFiltExBlocklist.txt. You must update your config if you are upgrading from a previous version and you are using the default filename!**
 
-  By default if there is nothing specified, it is
+  By default if there is nothing specified (or the value is blank), it is
   PassFiltExBlocklist.txt. The current working directory of the password filter is %SystemRoot%\System32, but you can specify
   a fully-qualified path name too. Even a UNC path (such as something in SYSVOL) if you want. WARNING: You are responsible 
   for properly setting the permissions on the blocklist file so that it may only be edited and viewed by authorized users.
@@ -130,9 +130,11 @@ These registry entries are optional and will not exist by default. Feel free to 
 
   **ApplyToTheseGroupsOnly** A comma-separated list of global security groups that this password filter will apply to. Currently only direct membership
   in global security groups is checked -- nested group membership is not expanded. This choice was made for performance reasons. I may reevaluate in the future.
-  Do not leave spaces before or after the commas. Spaces in group names are fine. If this registry entry is empty or does not exist, then all users
+  Spaces before or after the commas are ignored. Spaces in group names are fine. If this registry entry is empty or does not exist, then all users
   will have their passwords checked. Otherwise if this registry entry is populated, only the users who are specified groups will have their passwords checked.
   Users who are not members of the specified groups will get an automatic pass from this filter. (Other filters on the domain controller still apply.)
+  If this registry entry exists but can't be read, for example because it is not a REG_SZ or because it is longer than 1023 characters, the
+  filter logs an error and keeps using its previous value. (Right after startup, that means all users will have their passwords checked.)
 
   **Debug** 0 means it's off, 1 means it is on. If Debug is on, additional log messages will be written to the log file.
   If Debug is off, then only serious errors will be logged. Leaving Debug turned on isn't recommended because it can fill up your domain
@@ -143,9 +145,10 @@ These registry entries are optional and will not exist by default. Feel free to 
 - Comparisons are NOT case sensitive. (Though the final password will of course still be case sensitive.)
 
 - The blocklist is reloaded every 60 seconds, so feel free to edit the blocklist file at will. The password filter will read the 
-  new updates within a minute.
+  new updates within a minute. If the file can't be read, the filter keeps using the blocklist that it loaded last.
   
 - Registry settings are re-read every 60 seconds as well so you can change the registry settings without having to restart the whole machine.
+  If a registry setting exists but can't be read, for example because it is the wrong type, the filter logs an error and keeps using its previous value for that setting.
   
 - All registry settings are optional. They do not need to exist. If a registry setting does not exist, the default is used.
 
@@ -154,6 +157,10 @@ These registry entries are optional and will not exist by default. Feel free to 
 
 - Either Windows or Unix line endings (either \r\n or \n) in the blocklist file should both work. (Notepad++ is a good editor for 
   finding unprintable characters in your text file.)
+
+- Blank lines in the blocklist file are ignored, and so is a byte order mark at the start of the file. Each blocklisted string can be
+  at most 31 characters long; longer lines are cut off after 31 characters. A line with nothing but a ! on it is ignored, because it would
+  block every password.
 
 - For example, if the blocklist contains the token "abc", then the passwords abc and abc123 and AbC123 and 123Abc will all be 
   rejected. But Abc123! will be accepted, because the token abc does not make up 60% or more of the full password.
@@ -178,6 +185,9 @@ These registry entries are optional and will not exist by default. Feel free to 
 
 The debug log is \Windows\system32\PassFiltEx.log. A new log file is automatically started once the current log file reaches 1MB.
 By default, only error messages are logged. If the Debug registry setting is turned on, then additional informational messages will also be logged.
+Only SYSTEM and Administrators can access the log file, because it contains user names and, when Debug is on, the blocklisted
+strings that were found in rejected passwords. (Log files that were archived by older versions keep their old permissions, so you
+may want to delete them.)
 
 You can use the command "tasklist /m PassFiltEx.dll" to verify whether the module is indeed loaded into the lsass process. Certain
 security features such as RunAsPPL, antivirus, etc., might try to prevent lsass from loading the module.
@@ -188,12 +198,18 @@ security features such as RunAsPPL, antivirus, etc., might try to prevent lsass 
 **PassFiltExTest**
 
 This executable is for easily testing the filter without having to install the filter on a domain controller.
-PassFiltExTest.exe needs to be run as Administrator with UAC elevation though. This is because PassFiltEx.dll opens
-the registry key in HKLM with write permissions, which requires admin.
-It also requires that it be run on a machine that is a member of an Active Directory domain. This is because the
-functionality that checks group membership requires AD domain membership.
+PassFiltExTest.exe needs to be run as Administrator with UAC elevation though. This is because PassFiltEx.dll creates
+its registry key in HKLM if it doesn't exist yet, which requires admin.
+Group memberships (for ApplyToTheseGroupsOnly) are looked up on the computer that the filter is running on, so to test
+that setting with domain users and groups, run PassFiltExTest on a domain controller.
 The PassFiltEx.dll and the PassFiltExBlocklist.txt file need to be in the same directory as PassFiltExTest.exe.
 Press Ctrl+C to quit the program.
+
+You can also pipe passwords into PassFiltExTest, one per line, and it prints PASS or FAIL for each one. For example, in PowerShell:
+`'starwars', 'Xq7#Lm2$' | .\PassFiltExTest.exe testuser`
+
+`PassFiltExTest.exe <username> --edgecases` calls the filter with unusual or malformed input that it must handle without crashing,
+such as NULL pointers, very long passwords and account names, and strings that contain null characters, and prints the results.
 
 ![PassFiltExTest](passfiltextest.png "PassFiltExTest.exe")
 
