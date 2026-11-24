@@ -23,7 +23,7 @@
 #define FILTER_LOG_FILE_SDDL	L"D:P(A;;FA;;;SY)(A;;FA;;;BA)"
 // When the log file reaches this size in bytes, it is archived and a new log file is started.
 #define FILTER_LOG_MAX_SIZE		(1024 * 1024)
-#define FILTER_VERSION_STRING	L"1.6.3"
+#define FILTER_VERSION_STRING	L"1.6.4"
 
 // The blocklist file that is used if the BlocklistFileName registry value does not exist or is blank.
 #define FILTER_DEFAULT_BLOCKLIST_FILE_NAME	L"PassFiltExBlocklist.txt"
